@@ -334,3 +334,116 @@ const registerMonths = [
 
 String formatRegisterDate(DateTime d) =>
     '${registerMonths[d.month - 1]} ${d.day}, ${d.year}';
+
+// ── Validators / formatters ───────────────────────────────────────────────────
+
+/// A00-00-000000 → 1 letter, 2 digits, 2 digits, 6 digits
+class LicenseNoFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final raw =
+        newValue.text.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    final buf = StringBuffer();
+    var n = 0;
+    for (final ch in raw.split('')) {
+      if (n >= 11) break;
+      final isLetter = RegExp(r'[A-Z]').hasMatch(ch);
+      if (n == 0 ? !isLetter : isLetter) continue; // 1st = letter, rest = digits
+      if (n == 3 || n == 5) buf.write('-');
+      buf.write(ch);
+      n++;
+    }
+    final text = buf.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+String? validateLicenseNo(String? v) {
+  if (v == null || v.isEmpty) return "Enter your driver's license no.";
+  if (!RegExp(r'^[A-Z]\d{2}-\d{2}-\d{6}$').hasMatch(v)) {
+    return 'Format must be A00-00-000000';
+  }
+  return null;
+}
+
+/// Yesterday and earlier = expired. Today and tomorrow = accepted.
+/// Auto-format: digits only → YYYY-MM-DD
+class ExpiryDateFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final capped = digits.length > 8 ? digits.substring(0, 8) : digits;
+    final buf = StringBuffer();
+    for (var i = 0; i < capped.length; i++) {
+      if (i == 4 || i == 6) buf.write('-');
+      buf.write(capped[i]);
+    }
+    final text = buf.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+/// "2028-05-15" → DateTime, or null kung hindi totoong petsa (hal. 2028-02-31).
+DateTime? parseExpiryInput(String s) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(s);
+  if (m == null) return null;
+  final y = int.parse(m.group(1)!);
+  final mo = int.parse(m.group(2)!);
+  final d = int.parse(m.group(3)!);
+  if (mo < 1 || mo > 12 || d < 1) return null;
+  final dt = DateTime(y, mo, d);
+  if (dt.month != mo || dt.day != d) return null;
+  return dt;
+}
+
+String formatExpiryInput(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+/// Yesterday and earlier = expired. Today and tomorrow = accepted.
+/// Uses the phone's local time (PH).
+String? validateLicenseExpiry(String? v) {
+  final text = v?.trim() ?? '';
+  if (text.isEmpty) return 'Enter your license expiration date';
+
+  final d = parseExpiryInput(text);
+  final now = DateTime.now();
+  if (d == null || d.year > now.year + 20) {
+    return 'Enter a valid date (YYYY-MM-DD)';
+  }
+
+  final today = DateTime(now.year, now.month, now.day);
+  if (d.isBefore(today)) {
+    return 'Your license is expired. Please use a valid license.';
+  }
+  return null;
+}
+
+const kPlateMinLength = 6;
+const kPlateMaxLength = 7;
+
+final plateInputFormatters = <TextInputFormatter>[
+  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+  LengthLimitingTextInputFormatter(kPlateMaxLength),
+  TextInputFormatter.withFunction(
+      (o, n) => n.copyWith(text: n.text.toUpperCase())),
+];
+
+String? validatePlate(String? v) {
+  final p = v?.trim() ?? '';
+  if (p.isEmpty) return 'Enter your plate number';
+  if (p.length < kPlateMinLength) return 'Plate must be 6–7 characters';
+  if (!RegExp(r'[A-Za-z]').hasMatch(p) || !RegExp(r'\d').hasMatch(p)) {
+    return 'Plate must contain both letters and numbers';
+  }
+  return null;
+}

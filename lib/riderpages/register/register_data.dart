@@ -20,16 +20,17 @@ class RegisterData {
   String password = '';
   String emailVerificationToken = '';
 
-  // Step 3
-  Hub? hub;
-  VehicleType? vehicleType;
-  String vehicleModel = '';
-  String plateNumber = '';
+// Step 3
+Hub? hub;
+VehicleType? vehicleType;
 
-  // Step 4
-  String? licenseFrontPath;
-  String? licenseBackPath;
-  List<String> registrationPaths = [];
+// Step 4
+String plateNumber = '';
+String licenseNo = '';
+DateTime? licenseExpiry;
+String? licenseFrontPath;
+String? licenseBackPath;
+List<String> registrationPaths = [];
 }
 
 // ── Hub ───────────────────────────────────────────────────────────────────────
@@ -75,20 +76,14 @@ final HubService hubService = HttpHubService();
 
 enum VehicleType {
   motorcycle('Motorcycle', 0xe5af),
-  car('Car', 0xe1b9),
-  tricycle('Tricycle', 0xe556),
-  bicycleOther('Bicycle / Other', 0xe2dc);
+  tricycle('Tricycle', 0xe556);
 
   const VehicleType(this.label, this.iconCodePoint);
   final String label;
   final int iconCodePoint;
 
-  bool get needsPlate => this != VehicleType.bicycleOther;
-
   String get apiValue => switch (this) {
-        VehicleType.motorcycle   => 'motorcycle',
-        VehicleType.car          => 'car',
-        VehicleType.tricycle     => 'tricycle',
-        VehicleType.bicycleOther => 'bicycle_other',
+        VehicleType.motorcycle => 'motorcycle',
+        VehicleType.tricycle   => 'tricycle',
       };
 }

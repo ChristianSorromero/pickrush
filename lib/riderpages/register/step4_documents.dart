@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:rider_app/app_colors.dart';
@@ -20,9 +21,32 @@ class DocumentsScreen extends StatefulWidget {
 
 class _DocumentsScreenState extends State<DocumentsScreen> {
   final _picker = ImagePicker();
+  final _formKey = GlobalKey<FormState>();
+  final _licenseNoCtrl = TextEditingController();
+  final _expiryCtrl = TextEditingController();
+  final _plateCtrl = TextEditingController();
   String? _error;
 
   RegisterData get _d => widget.data;
+
+  @override
+  void initState() {
+    super.initState();
+    // restore values kapag bumalik galing Step 5
+    _licenseNoCtrl.text = _d.licenseNo;
+    _plateCtrl.text = _d.plateNumber;
+    if (_d.licenseExpiry != null) {
+      _expiryCtrl.text = formatExpiryInput(_d.licenseExpiry!);
+    }
+  }
+
+  @override
+  void dispose() {
+    _licenseNoCtrl.dispose();
+    _expiryCtrl.dispose();
+    _plateCtrl.dispose();
+    super.dispose();
+  }
 
   // ── Pickers ────────────────────────────────────────────────────────────────
 
@@ -87,15 +111,22 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   void _onContinue() {
+    if (!_formKey.currentState!.validate()) return;
+
     if (_d.licenseFrontPath == null || _d.licenseBackPath == null) {
-      setState(() => _error =
-          "Please upload both sides of your driver's license.");
+      setState(() =>
+          _error = "Please upload both sides of your driver's license.");
       return;
     }
     if (_d.registrationPaths.isEmpty) {
       setState(() => _error = 'Please attach your OR/CR.');
       return;
     }
+
+    _d.licenseNo = _licenseNoCtrl.text.trim();
+    _d.licenseExpiry = parseExpiryInput(_expiryCtrl.text);
+    _d.plateNumber = _plateCtrl.text.trim().toUpperCase();
+
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ReviewScreen(data: _d)),
     );
@@ -111,125 +142,175 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       buttonLabel: 'Proceed to Final Review  →',
       onContinue: _onContinue,
       onBack: () => Navigator.of(context).maybePop(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          RegisterSectionHeader(
-            "Professional Driver's License",
-            trailing: Text('Clear photo required',
-                style: AppTextStyles.caption.copyWith(fontSize: 11)),
-          ),
-          AppSpacing.gapLg,
-          Row(
-            children: [
-              Expanded(
-                child: _PhotoSlot(
-                  label: 'FRONT',
-                  emptyLabel: 'FRONT VIEW',
-                  path: _d.licenseFrontPath,
-                  onTap: () => _pickLicense(front: true),
-                ),
-              ),
-              AppSpacing.gapMd,
-              Expanded(
-                child: _PhotoSlot(
-                  label: 'BACK',
-                  emptyLabel: 'BACK VIEW',
-                  path: _d.licenseBackPath,
-                  onTap: () => _pickLicense(front: false),
-                ),
-              ),
-            ],
-          ),
-          AppSpacing.gapXl,
-          const RegisterSectionHeader('Vehicle Registration (OR/CR)'),
-          AppSpacing.gapLg,
-          _DashedBox(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 56,
-                        width: 56,
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: const Icon(Icons.description_outlined,
-                            color: AppColors.textMuted),
-                      ),
-                      AppSpacing.gapMd,
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Official Receipt & Certificate of Registration',
-                              style: AppTextStyles.bodyStrong
-                                  .copyWith(fontSize: 13),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "If borrowed, upload the owner's authorization "
-                              'letter together with the OR/CR.',
-                              style: AppTextStyles.caption
-                                  .copyWith(fontSize: 11, height: 1.3),
-                            ),
-                            const SizedBox(height: 8),
-                            InkWell(
-                              onTap: _attachRegistration,
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.attach_file_rounded,
-                                        size: 14, color: AppColors.primary),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'ATTACH DOCUMENTS',
-                                      style: AppTextStyles.link.copyWith(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RegisterSectionHeader(
+              "Professional Driver's License",
+              trailing: Text('Clear photo required',
+                  style: AppTextStyles.caption.copyWith(fontSize: 11)),
+            ),
+            AppSpacing.gapLg,
+            Row(
+              children: [
+                Expanded(
+                  child: _PhotoSlot(
+                    label: 'FRONT',
+                    emptyLabel: 'FRONT VIEW',
+                    path: _d.licenseFrontPath,
+                    onTap: () => _pickLicense(front: true),
                   ),
-                  if (_d.registrationPaths.isNotEmpty) ...[
-                    AppSpacing.gapMd,
-                    for (final p in _d.registrationPaths)
-                      _AttachedFileRow(
-                        name: p.split(Platform.pathSeparator).last,
-                        onRemove: () =>
-                            setState(() => _d.registrationPaths.remove(p)),
-                      ),
-                  ],
-                ],
+                ),
+                AppSpacing.gapMd,
+                Expanded(
+                  child: _PhotoSlot(
+                    label: 'BACK',
+                    emptyLabel: 'BACK VIEW',
+                    path: _d.licenseBackPath,
+                    onTap: () => _pickLicense(front: false),
+                  ),
+                ),
+              ],
+            ),
+            AppSpacing.gapXl,
+            RegisterLabeledField(
+              label: "Driver's License No.",
+              child: TextFormField(
+                controller: _licenseNoCtrl,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [LicenseNoFormatter()],
+                validator: validateLicenseNo,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                style: AppTextStyles.bodyStrong,
+                decoration: registerInputDecoration('A00-00-000000'),
               ),
             ),
-          ),
-          if (_error != null) ...[
             AppSpacing.gapLg,
-            RegisterErrorBanner(message: _error!),
+            RegisterLabeledField(
+              label: 'Expiration Date',
+              child: TextFormField(
+                controller: _expiryCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [ExpiryDateFormatter()],
+                validator: validateLicenseExpiry,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                style: AppTextStyles.bodyStrong,
+                decoration: registerInputDecoration('YYYY-MM-DD'),
+              ),
+            ),
+            AppSpacing.gapXl,
+            const RegisterSectionHeader('Vehicle Registration (OR/CR)'),
+            AppSpacing.gapLg,
+            _DashedBox(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 56,
+                          width: 56,
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: const Icon(Icons.description_outlined,
+                              color: AppColors.textMuted),
+                        ),
+                        AppSpacing.gapMd,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Official Receipt & Certificate of Registration',
+                                style: AppTextStyles.bodyStrong
+                                    .copyWith(fontSize: 13),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "If borrowed, upload the owner's authorization "
+                                'letter together with the OR/CR.',
+                                style: AppTextStyles.caption
+                                    .copyWith(fontSize: 11, height: 1.3),
+                              ),
+                              const SizedBox(height: 8),
+                              InkWell(
+                                onTap: _attachRegistration,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 4),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.attach_file_rounded,
+                                          size: 14,
+                                          color: AppColors.primary),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'ATTACH DOCUMENTS',
+                                        style: AppTextStyles.link.copyWith(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_d.registrationPaths.isNotEmpty) ...[
+                      AppSpacing.gapMd,
+                      for (final p in _d.registrationPaths)
+                        _AttachedFileRow(
+                          name: p.split(Platform.pathSeparator).last,
+                          onRemove: () => setState(
+                              () => _d.registrationPaths.remove(p)),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            AppSpacing.gapXl,
+            const RegisterSectionHeader('Vehicle Plate Number'),
+            AppSpacing.gapLg,
+            RegisterLabeledField(
+              label: 'Plate Number',
+              child: TextFormField(
+                controller: _plateCtrl,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: plateInputFormatters,
+                validator: validatePlate,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                style: AppTextStyles.bodyStrong,
+                decoration: registerInputDecoration('e.g. ABC1234'),
+              ),
+            ),
+            AppSpacing.gapLg,
+            const _InfoNotice(
+              "Make sure the plate number matches your vehicle's physical "
+              'plate. This will be verified during the background check.',
+            ),
+            if (_error != null) ...[
+              AppSpacing.gapLg,
+              RegisterErrorBanner(message: _error!),
+            ],
+            AppSpacing.gapXl,
+            const _GuidelinesCard(),
+            AppSpacing.gapXl,
           ],
-          AppSpacing.gapXl,
-          const _GuidelinesCard(),
-          AppSpacing.gapXl,
-        ],
+        ),
       ),
     );
   }
@@ -471,4 +552,45 @@ class _DashedRRectPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DashedRRectPainter old) =>
       old.color != color || old.fill != fill || old.radius != radius;
+}
+
+// ── Info notice ──────────────────────────────────────────────────────────────
+
+class _InfoNotice extends StatelessWidget {
+  const _InfoNotice(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoft,
+        borderRadius: AppRadius.mdAll,
+        border:
+            Border.all(color: AppColors.primary.withOpacity(0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(Icons.info_rounded,
+                size: 16, color: AppColors.primaryDark),
+          ),
+          AppSpacing.gapMd,
+          Expanded(
+            child: Text(
+              text,
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 12,
+                height: 1.4,
+                color: AppColors.primaryDark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

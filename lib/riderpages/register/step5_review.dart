@@ -108,21 +108,23 @@ class _ReviewScreenState extends State<ReviewScreen> {
         MapEntry('barangay_name',            _d.barangay!.name),
         MapEntry('street',                   _d.street),
         MapEntry('vehicle_type',             _d.vehicleType!.apiValue),
-        MapEntry('vehicle_model',            _d.vehicleModel),
         MapEntry('email_verification_token', _d.emailVerificationToken),
+        MapEntry('plate_number',             _d.plateNumber),
+        MapEntry('license_no',               _d.licenseNo),
+        MapEntry('license_expiry',           _d.licenseExpiry!.toIso8601String().substring(0, 10)),
       ]);
 
       if (_d.hub != null) form.fields.add(MapEntry('hub_id', _d.hub!.id));
-      if (_d.plateNumber.isNotEmpty) form.fields.add(MapEntry('plate_number', _d.plateNumber));
 
       // Files
       form.files.add(MapEntry('license_front',
           await MultipartFile.fromFile(_d.licenseFrontPath!, filename: 'license_front.jpg')));
       form.files.add(MapEntry('license_back',
           await MultipartFile.fromFile(_d.licenseBackPath!, filename: 'license_back.jpg')));
-      for (final path in _d.registrationPaths) {
+      for (var i = 0; i < _d.registrationPaths.length; i++) {
+        final path = _d.registrationPaths[i];
         final name = path.split(Platform.pathSeparator).last;
-        form.files.add(MapEntry('orcr[]', await MultipartFile.fromFile(path, filename: name)));
+        form.files.add(MapEntry('orcr[$i]', await MultipartFile.fromFile(path, filename: name)));
       }
 
       await apiClient.post('/api/riders/register', data: form);
@@ -224,9 +226,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
             onEdit: () => _popBack(2),
             children: [
               _InfoRow('Vehicle Type', _d.vehicleType?.label ?? '—'),
-              _InfoRow('Model', _d.vehicleModel),
-              _InfoRow('Plate Number',
-                  _d.plateNumber.isEmpty ? '—' : _d.plateNumber),
               _InfoRow('Preferred Hub', _d.hub?.name ?? 'No preference'),
             ],
           ),
@@ -236,6 +235,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
             title: 'Documents Status',
             onEdit: () => _popBack(1),
             children: [
+              _InfoRow('License No.',
+                  _d.licenseNo.isEmpty ? '—' : _d.licenseNo),
+              _InfoRow('Plate Number',
+                  _d.plateNumber.isEmpty ? '—' : _d.plateNumber),
+              _InfoRow(
+                  'License Expiry',
+                  _d.licenseExpiry == null
+                      ? '—'
+                      : formatRegisterDate(_d.licenseExpiry!)),
               _DocRow(
                 icon: Icons.badge_outlined,
                 title: "Driver's License",

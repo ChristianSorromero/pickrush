@@ -20,6 +20,13 @@ class RiderRegistrationController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
+        $files = $request->allFiles();
+        if (isset($files['orcr[]']) && !isset($files['orcr'])) {
+            $files['orcr'] = $files['orcr[]'];
+            unset($files['orcr[]']);
+            $request->files->replace($files);
+        }
+
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -36,13 +43,12 @@ class RiderRegistrationController extends Controller
             'street' => ['required', 'string', 'max:1000'],
             'hub_id' => ['nullable', Rule::exists('hubs', 'id')->where('is_active', true)],
             'vehicle_type' => ['required', Rule::in(['motorcycle', 'car', 'tricycle', 'bicycle_other'])],
-            'vehicle_model' => ['required', 'string', 'max:255'],
             'plate_number' => ['nullable', 'string', 'max:32'],
             'email_verification_token' => ['required', 'string', 'size:64'],
-            'license_front' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
-            'license_back' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+            'license_front' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            'license_back' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
             'orcr' => ['required', 'array', 'min:1', 'max:5'],
-            'orcr.*' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+            'orcr.*' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
         $email = mb_strtolower(trim($validated['email']));
         $tokenHash = hash('sha256', $validated['email_verification_token']);
@@ -99,7 +105,6 @@ class RiderRegistrationController extends Controller
                     'street' => $validated['street'],
                     'hub_id' => $validated['hub_id'] ?? null,
                     'vehicle_type' => $validated['vehicle_type'],
-                    'vehicle_model' => $validated['vehicle_model'],
                     'plate_number' => $validated['plate_number'] ?? null,
                     'submitted_at' => now(),
                 ]);

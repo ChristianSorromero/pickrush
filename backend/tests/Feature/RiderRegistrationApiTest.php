@@ -44,7 +44,6 @@ class RiderRegistrationApiTest extends TestCase
             'street' => '123 Example Street',
             'hub_id' => null,
             'vehicle_type' => 'motorcycle',
-            'vehicle_model' => 'Honda Click',
             'plate_number' => 'ABC1234',
             'email_verification_token' => $token,
             'license_front' => UploadedFile::fake()->create('front.jpg', 100, 'image/jpeg'),
@@ -71,10 +70,50 @@ class RiderRegistrationApiTest extends TestCase
         }
     }
 
-    public function test_registration_rejects_expired_or_unverified_email_tokens(): void
+    public function test_registration_accepts_documents_up_to_5mb(): void
     {
         Storage::fake('local');
         $token = str_repeat('b', 64);
+        EmailOtp::query()->create([
+            'email' => 'rider@example.com',
+            'code_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(10),
+            'verified_at' => now(),
+            'verification_token_hash' => hash('sha256', $token),
+            'verification_expires_at' => now()->addMinutes(30),
+            'created_at' => now(),
+        ]);
+
+        $this->post('/api/riders/register', $this->registrationPayload($token, 5120))
+            ->assertCreated();
+    }
+
+    public function test_registration_rejects_documents_over_5mb(): void
+    {
+        Storage::fake('local');
+        $token = str_repeat('c', 64);
+        EmailOtp::query()->create([
+            'email' => 'rider2@example.com',
+            'code_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(10),
+            'verified_at' => now(),
+            'verification_token_hash' => hash('sha256', $token),
+            'verification_expires_at' => now()->addMinutes(30),
+            'created_at' => now(),
+        ]);
+
+        $this->post('/api/riders/register', $this->registrationPayload($token, 5220, 'rider2@example.com'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['license_front', 'license_back']);
+
+        $this->assertDatabaseCount('riders', 0);
+        $this->assertDatabaseCount('rider_documents', 0);
+    }
+
+    public function test_registration_rejects_expired_or_unverified_email_tokens(): void
+    {
+        Storage::fake('local');
+        $token = str_repeat('d', 64);
         EmailOtp::query()->create([
             'email' => 'rider@example.com',
             'code_hash' => Hash::make('123456'),
@@ -118,14 +157,14 @@ class RiderRegistrationApiTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function registrationPayload(string $token): array
+    private function registrationPayload(string $token, int $fileSizeKb = 100, string $email = 'rider@example.com'): array
     {
         return [
             'first_name' => 'Juan',
             'last_name' => 'Dela Cruz',
             'birth_date' => '1995-03-12',
             'mobile' => '9123456789',
-            'email' => 'rider@example.com',
+            'email' => $email,
             'password' => 'secure-password',
             'province_code' => 'NCR',
             'province_name' => 'Metro Manila (NCR)',
@@ -135,11 +174,10 @@ class RiderRegistrationApiTest extends TestCase
             'barangay_name' => 'Bagong Pag-asa',
             'street' => '123 Example Street',
             'vehicle_type' => 'motorcycle',
-            'vehicle_model' => 'Honda Click',
             'email_verification_token' => $token,
-            'license_front' => UploadedFile::fake()->create('front.jpg', 100, 'image/jpeg'),
-            'license_back' => UploadedFile::fake()->create('back.jpg', 100, 'image/jpeg'),
-            'orcr' => [UploadedFile::fake()->create('orcr.jpg', 100, 'image/jpeg')],
+            'license_front' => UploadedFile::fake()->create('front.jpg', $fileSizeKb, 'image/jpeg'),
+            'license_back' => UploadedFile::fake()->create('back.jpg', $fileSizeKb, 'image/jpeg'),
+            'orcr' => [UploadedFile::fake()->create('orcr.jpg', $fileSizeKb, 'image/jpeg')],
         ];
     }
 }

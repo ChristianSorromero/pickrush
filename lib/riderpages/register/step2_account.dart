@@ -147,7 +147,7 @@ class EmailOtpScreen extends StatefulWidget {
 
 class _EmailOtpScreenState extends State<EmailOtpScreen> {
   static const _length = 6;
-  static const _cooldown = 45;
+  static const _cooldown = 300;
 
   final _code = TextEditingController();
   final _focus = FocusNode();

@@ -24,7 +24,6 @@ return new class extends Migration {
             $table->string('hub_id')->nullable();
             $table->foreign('hub_id')->references('id')->on('hubs')->nullOnDelete();
             $table->enum('vehicle_type', ['motorcycle','car','tricycle','bicycle_other']);
-            $table->string('vehicle_model');
             $table->string('plate_number')->nullable();
             $table->enum('status', ['pending_review','approved','rejected'])->default('pending_review');
             $table->text('reject_reason')->nullable();

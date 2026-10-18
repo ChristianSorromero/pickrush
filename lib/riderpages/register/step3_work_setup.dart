@@ -16,8 +16,6 @@ class WorkSetupScreen extends StatefulWidget {
 
 class _WorkSetupScreenState extends State<WorkSetupScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _model = TextEditingController();
-  final _plate = TextEditingController();
 
   List<Hub> _hubs = const [];
   Hub? _hub;
@@ -35,8 +33,6 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
 
   @override
   void dispose() {
-    _model.dispose();
-    _plate.dispose();
     super.dispose();
   }
 
@@ -70,9 +66,7 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
 
     widget.data
       ..hub = _hub
-      ..vehicleType = _type
-      ..vehicleModel = _model.text.trim()
-      ..plateNumber = _plate.text.trim().toUpperCase();
+      ..vehicleType = _type;
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -149,44 +143,6 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
               ),
             ),
             AppSpacing.gapXl,
-            const RegisterSectionHeader('Specifications'),
-            AppSpacing.gapLg,
-            RegisterLabeledField(
-              label: 'Vehicle Make & Model',
-              child: TextFormField(
-                controller: _model,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                style: AppTextStyles.bodyStrong,
-                decoration:
-                    registerInputDecoration('e.g. Honda Click 125i'),
-                validator: (v) =>
-                    (v == null || v.trim().length < 2) ? 'Required' : null,
-              ),
-            ),
-            AppSpacing.gapLg,
-            RegisterLabeledField(
-              label: 'Plate Number / MV File Number',
-              child: TextFormField(
-                controller: _plate,
-                textCapitalization: TextCapitalization.characters,
-                style: AppTextStyles.bodyStrong,
-                decoration: registerInputDecoration('e.g. ABC 1234'),
-                validator: (v) {
-                  final value = v?.trim() ?? '';
-                  if (_type != null &&
-                      !_type!.needsPlate &&
-                      value.isEmpty) return null;
-                  return value.length < 3 ? 'Required' : null;
-                },
-              ),
-            ),
-            AppSpacing.gapLg,
-            _InfoNotice(
-              "Make sure the plate number matches your vehicle's physical "
-              'plate. This will be verified during the background check.',
-            ),
-            AppSpacing.gapXl,
           ],
         ),
       ),
@@ -202,27 +158,18 @@ class _VehicleTypeGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget card(VehicleType t) => Expanded(
-          child: _VehicleTypeCard(
-            type: t,
-            selected: value == t,
-            onTap: () => onChanged(t),
-          ),
+    Widget card(VehicleType t) => _VehicleTypeCard(
+          type: t,
+          selected: value == t,
+          onTap: () => onChanged(t),
         );
 
+    // Stacked top-to-bottom, full width pero hindi sagad ang screen
     return Column(
       children: [
-        Row(children: [
-          card(VehicleType.motorcycle),
-          AppSpacing.gapMd,
-          card(VehicleType.car),
-        ]),
-        AppSpacing.gapMd,
-        Row(children: [
-          card(VehicleType.tricycle),
-          AppSpacing.gapMd,
-          card(VehicleType.bicycleOther),
-        ]),
+        card(VehicleType.motorcycle),
+        AppSpacing.gapLg,
+        card(VehicleType.tricycle),
       ],
     );
   }
@@ -241,9 +188,7 @@ class _VehicleTypeCard extends StatelessWidget {
 
   static const _icons = {
     VehicleType.motorcycle: Icons.two_wheeler_rounded,
-    VehicleType.car: Icons.directions_car_rounded,
     VehicleType.tricycle: Icons.electric_rickshaw_rounded,
-    VehicleType.bicycleOther: Icons.pedal_bike_rounded,
   };
 
   @override
@@ -261,96 +206,49 @@ class _VehicleTypeCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
-          height: 96,
-          child: Stack(
-            children: [
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      height: 40,
-                      width: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: selected
-                            ? AppColors.primary
-                            : AppColors.border,
-                      ),
-                      child: Icon(
-                        _icons[type],
-                        size: 20,
-                        color: selected
-                            ? AppColors.surface
-                            : AppColors.textMuted,
-                      ),
-                    ),
-                    AppSpacing.gapSm,
-                    Text(
-                      selected
-                          ? type.label
-                          : type.label.toUpperCase(),
-                      style: selected
-                          ? AppTextStyles.bodyStrong
-                              .copyWith(fontWeight: FontWeight.w800)
-                          : AppTextStyles.overline.copyWith(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textMuted,
-                            ),
-                    ),
-                  ],
+          height: 120,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Container(
+                  height: 64,
+                  width: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: selected ? AppColors.primary : AppColors.border,
+                  ),
+                  child: Icon(
+                    _icons[type],
+                    size: 32,
+                    color:
+                        selected ? AppColors.surface : AppColors.textMuted,
+                  ),
                 ),
-              ),
-              if (selected)
-                const Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Icon(Icons.check_circle_rounded,
-                      size: 18, color: AppColors.primary),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Text(
+                    type.label,
+                    style: AppTextStyles.bodyStrong.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: selected
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
                 ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoNotice extends StatelessWidget {
-  const _InfoNotice(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primarySoft,
-        borderRadius: AppRadius.mdAll,
-        border:
-            Border.all(color: AppColors.primary.withOpacity(0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.info_rounded,
-                size: 16, color: AppColors.primaryDark),
-          ),
-          AppSpacing.gapMd,
-          Expanded(
-            child: Text(
-              text,
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 12,
-                height: 1.4,
-                color: AppColors.primaryDark,
-              ),
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 24,
+                  color: selected ? AppColors.primary : AppColors.border,
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
