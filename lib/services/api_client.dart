@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:rider_app/config.dart';
+import 'package:rider_app/services/auth_service.dart';
 
 /// Single Dio instance used by every service.
+/// Signed-in requests carry the rider's bearer token.
 final Dio apiClient = _build();
 
 Dio _build() {
@@ -10,6 +12,13 @@ Dio _build() {
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
     headers: {'Accept': 'application/json'},
+  ));
+  dio.interceptors.add(InterceptorsWrapper(
+    onRequest: (options, handler) {
+      final token = authService.token;
+      if (token != null) options.headers['Authorization'] = 'Bearer $token';
+      handler.next(options);
+    },
   ));
   return dio;
 }

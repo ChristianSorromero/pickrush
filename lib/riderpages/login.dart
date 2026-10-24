@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'package:rider_app/riderpages/application_status.dart';
 import 'package:rider_app/riderpages/main_shell.dart';
-import 'package:rider_app/riderpages/register.dart';
+import 'package:rider_app/riderpages/register/register.dart';
+import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
+import 'package:rider_app/services/auth_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/app_checkbox_tile.dart';
 import 'package:rider_app/widgets/app_text_field.dart';
@@ -20,6 +23,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _rememberMe = true;
+  bool _loading = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -28,11 +33,32 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Hardcoded for now: any input goes straight to the dashboard.
-  void _onSignIn() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainShell()),
-    );
+  /// Active riders go to the dashboard; applicants see their status.
+  Future<void> _onSignIn() async {
+    FocusScope.of(context).unfocus();
+    final email = _email.text.trim();
+    if (email.isEmpty || _password.text.isEmpty) {
+      setState(() => _error = 'Enter your email and password.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final account = await authService.login(email, _password.text,
+          remember: _rememberMe);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => account.status == RiderStatus.active
+            ? const MainShell()
+            : ApplicationStatusScreen(account: account),
+      ));
+    } on AuthException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   void _onForgotPassword() {
@@ -107,8 +133,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
+              if (_error != null) ...[
+                AppSpacing.gapMd,
+                Text(
+                  _error!,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
               AppSpacing.gapXl,
-              AppButton(label: 'Sign In', onPressed: _onSignIn),
+              AppButton(
+                label: 'Sign In',
+                isLoading: _loading,
+                onPressed: _loading ? null : _onSignIn,
+              ),
               AppSpacing.gapXxl,
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

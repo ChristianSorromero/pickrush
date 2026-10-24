@@ -122,6 +122,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       setState(() => _error = 'Please attach your OR/CR.');
       return;
     }
+    if (_d.registrationPaths.length > kMaxOrcrFiles) {
+      setState(() => _error =
+          'Attach up to $kMaxOrcrFiles OR/CR files only. Remove the extras.');
+      return;
+    }
 
     _d.licenseNo = _licenseNoCtrl.text.trim();
     _d.licenseExpiry = parseExpiryInput(_expiryCtrl.text);

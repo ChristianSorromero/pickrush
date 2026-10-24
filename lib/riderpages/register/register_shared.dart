@@ -270,7 +270,8 @@ class RegisterDropdown<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<T>(
-      value: value,
+      // A refilled value shows once its list has loaded.
+      value: value != null && items.contains(value) ? value : null,
       isExpanded: true,
       icon: isLoading
           ? const SizedBox(
@@ -427,6 +428,9 @@ String? validateLicenseExpiry(String? v) {
   }
   return null;
 }
+
+/// Picksell accepts at most this many OR/CR files per application.
+const kMaxOrcrFiles = 5;
 
 const kPlateMinLength = 6;
 const kPlateMaxLength = 7;

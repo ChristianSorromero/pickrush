@@ -7,9 +7,12 @@ import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/services/address_service.dart';
 import 'register_shared.dart';
 import 'step2_account.dart';
+import 'step3_work_setup.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  /// [initial] refills the form when a rejected rider resubmits.
+  const RegisterScreen({super.key, this.initial});
+  final RegisterData? initial;
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -17,7 +20,7 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _data = RegisterData();
+  late final RegisterData _data = widget.initial ?? RegisterData();
 
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
@@ -43,7 +46,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    _firstName.text = _data.firstName;
+    _lastName.text = _data.lastName;
+    _mobile.text = _data.mobile;
+    _street.text = _data.street;
+    if (_data.birthDate != null) _dob.text = formatRegisterDate(_data.birthDate!);
+    _province = _data.province;
+    _city = _data.city;
+    _barangay = _data.barangay;
+
     _loadProvinces();
+    if (_province != null) _loadCities(_province!);
+    if (_city != null) _loadBarangays(_city!);
   }
 
   @override
@@ -173,8 +187,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ..barangay = _barangay
       ..street = _street.text.trim();
 
+    // A resubmitting rider already has a verified email and password.
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AccountCreationScreen(data: _data)),
+      MaterialPageRoute(
+          builder: (_) => _data.isResubmission
+              ? WorkSetupScreen(data: _data)
+              : AccountCreationScreen(data: _data)),
     );
   }
 
@@ -183,7 +201,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return RegisterStepScaffold(
       step: 1,
       title: 'Personal Details',
-      buttonLabel: 'Continue to Account Creation',
+      buttonLabel: _data.isResubmission
+          ? 'Continue to Work Setup'
+          : 'Continue to Account Creation',
       onContinue: _onContinue,
       onBack: () => Navigator.of(context).maybePop(),
       child: Form(

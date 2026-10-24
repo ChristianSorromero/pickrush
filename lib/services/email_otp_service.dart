@@ -35,7 +35,7 @@ class HttpOtpService implements OtpService {
   Future<void> sendEmailOtp(String email) async {
     try {
       await apiClient.post(
-        '/api/auth/email-otp/send',
+        '/api/rider/email-code/send',
         data: {'email': email},
       );
     } on DioException catch (e) {
@@ -47,7 +47,7 @@ class HttpOtpService implements OtpService {
   Future<OtpResult> verifyEmailOtp(String email, String code) async {
     try {
       final res = await apiClient.post(
-        '/api/auth/email-otp/verify',
+        '/api/rider/email-code/verify',
         data: {'email': email, 'code': code},
       );
       final token = res.data['verificationToken'] as String?;

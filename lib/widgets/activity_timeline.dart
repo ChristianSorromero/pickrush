@@ -12,6 +12,12 @@ class ActivityTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Text('No activity yet today.', style: AppTextStyles.caption),
+      );
+    }
     return Column(
       children: [
         for (var i = 0; i < items.length; i++)
@@ -42,6 +48,16 @@ class _ActivityTile extends StatelessWidget {
             icon: Icons.navigation_rounded,
             color: AppColors.info,
             bg: AppColors.infoSoft
+          ),
+        ActivityType.outForDelivery => (
+            icon: Icons.local_shipping_rounded,
+            color: AppColors.info,
+            bg: AppColors.infoSoft
+          ),
+        ActivityType.failed => (
+            icon: Icons.close_rounded,
+            color: AppColors.primaryDark,
+            bg: AppColors.primarySoft
           ),
       };
 

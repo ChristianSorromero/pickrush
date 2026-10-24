@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:rider_app/app_colors.dart';
+import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/widgets/circle_icon_button.dart';
 import 'package:rider_app/widgets/status_pill.dart';
 
@@ -10,19 +11,29 @@ class DashboardTopBar extends StatelessWidget {
     required this.isOnline,
     required this.hubName,
     required this.hasNotifications,
+    this.onToggleOnline,
+    this.onNotifications,
   });
 
   final bool isOnline;
   final String hubName;
   final bool hasNotifications;
 
+  /// Tapping the ONLINE / OFFLINE pill.
+  final VoidCallback? onToggleOnline;
+  final VoidCallback? onNotifications;
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        StatusPill.dot(
-          label: isOnline ? 'ONLINE' : 'OFFLINE',
-          color: isOnline ? AppColors.success : AppColors.textMuted,
+        InkWell(
+          onTap: onToggleOnline,
+          borderRadius: AppRadius.pillAll,
+          child: StatusPill.dot(
+            label: isOnline ? 'ONLINE' : 'OFFLINE',
+            color: isOnline ? AppColors.success : AppColors.textMuted,
+          ),
         ),
         const SizedBox(width: 8),
         Flexible(
@@ -32,7 +43,7 @@ class DashboardTopBar extends StatelessWidget {
         CircleIconButton(
           icon: Icons.notifications_none_rounded,
           showBadge: hasNotifications,
-          onPressed: () {},
+          onPressed: onNotifications,
         ),
       ],
     );

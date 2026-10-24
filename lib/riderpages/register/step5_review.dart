@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
+import 'package:rider_app/riderpages/application_status.dart';
 import 'package:rider_app/riderpages/login.dart';
 import 'package:rider_app/riderpages/register/step2_account.dart';
 import 'package:rider_app/services/api_client.dart';
@@ -24,7 +25,12 @@ class _ReviewScreenState extends State<ReviewScreen> {
   bool _certified = false;
   bool _agreed = false;
   bool _submitting = false;
+  double? _progress; // upload progress 0..1 while submitting
   String? _error;
+
+  /// Picksell's limit per file (8 MB) and a safe total for one application.
+  static const _maxFileBytes = 8 * 1024 * 1024;
+  static const _maxTotalBytes = 45 * 1024 * 1024;
 
   late final TapGestureRecognizer _termsTap;
   late final TapGestureRecognizer _privacyTap;
@@ -48,6 +54,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   // ── Navigation for EDIT links ──────────────────────────────────────────────
   // Stack: [Login, Step1, Step2, Step3, Step4, Review]
+  // Resubmission: [Status, Step1, Step3, Step4, Review] (no email step)
 
   void _popBack(int count) {
     var n = 0;
@@ -84,9 +91,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
       setState(() => _error = 'Please accept both declarations before submitting.');
       return;
     }
+    final tooBig = _checkFileSizes();
+    if (tooBig != null) {
+      setState(() => _error = tooBig);
+      return;
+    }
     setState(() {
       _error = null;
       _submitting = true;
+      _progress = 0;
     });
 
     try {
@@ -98,8 +111,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         MapEntry('last_name',                _d.lastName),
         MapEntry('birth_date',               _d.birthDate!.toIso8601String().substring(0, 10)),
         MapEntry('mobile',                   _d.mobile),
-        MapEntry('email',                    _d.email),
-        MapEntry('password',                 _d.password),
+        MapEntry('hub_id',                   _d.hub!.id),
         MapEntry('province_code',            _d.province!.code),
         MapEntry('province_name',            _d.province!.name),
         MapEntry('city_code',                _d.city!.code),
@@ -108,13 +120,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
         MapEntry('barangay_name',            _d.barangay!.name),
         MapEntry('street',                   _d.street),
         MapEntry('vehicle_type',             _d.vehicleType!.apiValue),
-        MapEntry('email_verification_token', _d.emailVerificationToken),
         MapEntry('plate_number',             _d.plateNumber),
         MapEntry('license_no',               _d.licenseNo),
         MapEntry('license_expiry',           _d.licenseExpiry!.toIso8601String().substring(0, 10)),
       ]);
 
-      if (_d.hub != null) form.fields.add(MapEntry('hub_id', _d.hub!.id));
+      // A first application proves the email; a resubmission is signed in.
+      if (!_d.isResubmission) {
+        form.fields.addAll([
+          MapEntry('email',                    _d.email),
+          MapEntry('password',                 _d.password),
+          MapEntry('email_verification_token', _d.emailVerificationToken),
+        ]);
+      }
 
       // Files
       form.files.add(MapEntry('license_front',
@@ -127,7 +145,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
         form.files.add(MapEntry('orcr[$i]', await MultipartFile.fromFile(path, filename: name)));
       }
 
-      await apiClient.post('/api/riders/register', data: form);
+      // Photos travel from the phone through the tunnel to Picksell, which
+      // can take well over the client's default 15 s on mobile data.
+      await apiClient.post(
+        _d.isResubmission ? '/api/rider/application' : '/api/rider/apply',
+        data: form,
+        options: Options(
+          sendTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(minutes: 2),
+        ),
+        onSendProgress: (sent, total) {
+          if (total > 0 && mounted) setState(() => _progress = sent / total);
+        },
+      );
 
       if (!mounted) return;
       _d.password = ''; // clear password from memory
@@ -137,7 +167,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
       if (!mounted) return;
       final msg = apiErrorMessage(e);
       // If the OTP token expired, send the rider back to the OTP screen
-      final isTokenExpired = e.response?.statusCode == 422 &&
+      final isTokenExpired = !_d.isResubmission &&
+          e.response?.statusCode == 422 &&
           (e.response?.data?['errors']?['email_verification_token'] != null ||
               (msg.toLowerCase().contains('expired') &&
                   msg.toLowerCase().contains('verif')));
@@ -162,6 +193,30 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
   }
 
+  /// Returns an error message when a file is over Picksell's limits.
+  String? _checkFileSizes() {
+    final paths = <String, String>{
+      "License (front)": _d.licenseFrontPath!,
+      "License (back)": _d.licenseBackPath!,
+      for (final p in _d.registrationPaths)
+        'OR/CR file ${p.split(Platform.pathSeparator).last}': p,
+    };
+    var total = 0;
+    for (final entry in paths.entries) {
+      final size = File(entry.value).lengthSync();
+      if (size > _maxFileBytes) {
+        return '${entry.key} is larger than 8 MB. Go back to Documents and '
+            'use a smaller photo or file.';
+      }
+      total += size;
+    }
+    if (total > _maxTotalBytes) {
+      return 'Your files are too large together. Go back to Documents and '
+          'attach fewer or smaller OR/CR files.';
+    }
+    return null;
+  }
+
   Future<void> _showSuccess() async {
     await showDialog<void>(
       context: context,
@@ -169,10 +224,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
       builder: (dialogContext) => PopScope(
         canPop: false,
         child: _SuccessDialog(
-          onBackToLogin: () {
+          resubmitted: _d.isResubmission,
+          onDone: () {
             Navigator.of(dialogContext).pop();
+            // A resubmitting rider is signed in: show their updated status.
+            final Widget next = _d.isResubmission
+                ? const ApplicationStatusScreen()
+                : const LoginScreen();
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              MaterialPageRoute(builder: (_) => next),
               (route) => false,
             );
           },
@@ -202,7 +262,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           _ReviewCard(
             icon: Icons.person_rounded,
             title: 'Personal Info',
-            onEdit: () => _popBack(4),
+            onEdit: () => _popBack(_d.isResubmission ? 3 : 4),
             children: [
               _InfoRow('Full Name', _fullName),
               _InfoRow('Birth Date', _birthDate),
@@ -213,6 +273,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           _ReviewCard(
             icon: Icons.phone_rounded,
             title: 'Account & Contact',
+            // Step 2, or Step 1 (mobile number) when resubmitting.
             onEdit: () => _popBack(3),
             children: [
               _InfoRow('Mobile', _mobile),
@@ -226,7 +287,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             onEdit: () => _popBack(2),
             children: [
               _InfoRow('Vehicle Type', _d.vehicleType?.label ?? '—'),
-              _InfoRow('Preferred Hub', _d.hub?.name ?? 'No preference'),
+              _InfoRow('Station Hub', _d.hub?.name ?? '—'),
             ],
           ),
           AppSpacing.gapLg,
@@ -323,6 +384,21 @@ class _ReviewScreenState extends State<ReviewScreen> {
             AppSpacing.gapMd,
             RegisterErrorBanner(message: _error!),
           ],
+          if (_submitting && _progress != null) ...[
+            AppSpacing.gapMd,
+            Text(
+              _progress! < 1
+                  ? 'Uploading your documents… ${(_progress! * 100).round()}%'
+                  : 'Upload done. Waiting for Picksell…',
+              style: AppTextStyles.caption.copyWith(fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            LinearProgressIndicator(
+              value: _progress! < 1 ? _progress : null,
+              color: AppColors.primary,
+              backgroundColor: AppColors.border,
+            ),
+          ],
           AppSpacing.gapLg,
           Container(
             padding: const EdgeInsets.all(12),
@@ -338,9 +414,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 AppSpacing.gapMd,
                 Expanded(
                   child: Text(
-                    "Once submitted, you won't be able to change your "
-                    'details until your application has been reviewed '
-                    '(usually 24-48 hours).',
+                    'Once submitted, your station hub manager reviews your '
+                    'documents and may call you for an interview. You can '
+                    'log in to check your status.',
                     style: AppTextStyles.caption.copyWith(
                       fontSize: 11,
                       height: 1.4,
@@ -570,8 +646,9 @@ class _CheckCard extends StatelessWidget {
 // ── Success modal ────────────────────────────────────────────────────────────
 
 class _SuccessDialog extends StatelessWidget {
-  const _SuccessDialog({required this.onBackToLogin});
-  final VoidCallback onBackToLogin;
+  const _SuccessDialog({required this.onDone, this.resubmitted = false});
+  final VoidCallback onDone;
+  final bool resubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -606,14 +683,14 @@ class _SuccessDialog extends StatelessWidget {
             ),
             AppSpacing.gapLg,
             Text(
-              'Registration\nSubmitted!',
+              resubmitted ? 'Application\nResubmitted!' : 'Registration\nSubmitted!',
               textAlign: TextAlign.center,
               style: AppTextStyles.h2.copyWith(fontSize: 24),
             ),
             AppSpacing.gapMd,
             Text(
-              'Your application has been received and is under review. '
-              "We'll notify you once your account is activated.",
+              'Your station will review your application. You can log in '
+              'anytime to check its status.',
               textAlign: TextAlign.center,
               style: AppTextStyles.body.copyWith(fontSize: 13, height: 1.5),
             ),
@@ -623,7 +700,7 @@ class _SuccessDialog extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: onBackToLogin,
+                onPressed: onDone,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -632,7 +709,7 @@ class _SuccessDialog extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Back to Login',
+                child: Text(resubmitted ? 'View Status' : 'Back to Login',
                     style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),

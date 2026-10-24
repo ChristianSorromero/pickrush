@@ -18,11 +18,11 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
   final _formKey = GlobalKey<FormState>();
 
   List<Hub> _hubs = const [];
-  Hub? _hub;
-  VehicleType? _type;
+  late Hub? _hub = widget.data.hub;
+  late VehicleType? _type = widget.data.vehicleType;
 
   bool _loadingHubs = false;
-  bool _showingAllHubs = false;
+  HubScope? _scope;
   String? _hubError;
 
   @override
@@ -42,19 +42,21 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
       _hubError = null;
     });
     try {
-      final all = await hubService.fetchHubs();
+      final nearby = await hubService.fetchNearby(
+        cityCode: widget.data.city!.code,
+        provinceCode: widget.data.province!.code,
+      );
       if (!mounted) return;
-      final province = widget.data.province?.name;
-      final nearby =
-          all.where((h) => h.province == province).toList();
       setState(() {
-        _hubs = nearby.isEmpty ? all : nearby;
-        _showingAllHubs = nearby.isEmpty;
+        _hubs = nearby.hubs;
+        _scope = nearby.scope;
+        if (_hub != null && !_hubs.contains(_hub)) _hub = null;
+        if (_hub == null && _hubs.length == 1) _hub = _hubs.first;
       });
     } catch (_) {
       if (!mounted) return;
       setState(
-          () => _hubError = 'Could not load hubs. Please try again.');
+          () => _hubError = 'Could not load stations. Please try again.');
     } finally {
       if (mounted) setState(() => _loadingHubs = false);
     }
@@ -93,25 +95,33 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
               AppSpacing.gapLg,
             ],
             RegisterLabeledField(
-              label: 'Preferred Hub',
+              label: 'Station Hub',
               child: RegisterDropdown<Hub>(
-                hint: 'Select a hub...',
+                hint: 'Select your station...',
                 value: _hub,
                 items: _hubs,
                 labelOf: (h) => h.name,
                 isLoading: _loadingHubs,
-                isRequired: false,
                 onChanged:
                     _hubs.isEmpty ? null : (h) => setState(() => _hub = h),
               ),
             ),
-            if (_showingAllHubs) ...[
-              AppSpacing.gapSm,
-              Text(
-                'No hubs in your province yet. Showing all hubs.',
-                style: AppTextStyles.caption.copyWith(fontSize: 12),
+            AppSpacing.gapSm,
+            Text(
+              switch (_scope) {
+                HubScope.city =>
+                  'Stations in ${widget.data.city?.name}. This station reviews your application.',
+                HubScope.province =>
+                  'No station in ${widget.data.city?.name} yet. Showing stations in ${widget.data.province?.name}.',
+                HubScope.none =>
+                  'No Pickrush station near your address is accepting riders yet. Please check again later.',
+                null => 'The station you choose reviews your application.',
+              },
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 12,
+                color: _scope == HubScope.none ? AppColors.primaryDark : null,
               ),
-            ],
+            ),
             AppSpacing.gapXl,
             RegisterSectionHeader(
               'Vehicle Type',

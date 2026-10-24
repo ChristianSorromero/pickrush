@@ -3,12 +3,17 @@ import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/riderpages/login.dart';
+import 'package:rider_app/services/assignment_watcher.dart';
+import 'package:rider_app/services/auth_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
 
-  void _logout(BuildContext context) {
+  Future<void> _logout(BuildContext context) async {
+    assignmentWatcher.reset();
+    await authService.logout();
+    if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
