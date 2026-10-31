@@ -87,6 +87,12 @@ class AssignmentWatcher extends ChangeNotifier {
     }
   }
 
+  /// Something changed on this phone (e.g. went online from Account): screens reload.
+  void touch() {
+    changes++;
+    notifyListeners();
+  }
+
   /// The rider opened the notification list; the badge clears right away.
   void markAllRead() {
     if (unreadNotifications == 0) return;

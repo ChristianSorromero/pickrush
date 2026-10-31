@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/services/email_otp_service.dart';
+import 'package:rider_app/widgets/code_input.dart';
+import 'package:rider_app/widgets/password_rules.dart';
 import 'register_shared.dart';
 import 'step3_work_setup.dart';
 
@@ -68,7 +69,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rules = _PasswordRules(_password.text);
+    final rules = PasswordRules(_password.text);
 
     return RegisterStepScaffold(
       step: 2,
@@ -110,11 +111,11 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
                 hint: '••••••••',
                 onChanged: (_) => setState(() {}),
                 validator: (v) =>
-                    _PasswordRules(v ?? '').allMet ? null : 'Password is too weak',
+                    PasswordRules(v ?? '').allMet ? null : 'Password is too weak',
               ),
             ),
             AppSpacing.gapMd,
-            _PasswordRuleList(rules: rules),
+            PasswordRuleList(rules: rules),
             AppSpacing.gapLg,
             RegisterLabeledField(
               label: 'Confirm Password',
@@ -274,7 +275,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
             ),
           ),
           AppSpacing.gapXl,
-          _OtpInput(
+          CodeInput(
             controller: _code,
             focusNode: _focus,
             length: _length,
@@ -329,166 +330,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
   }
 }
 
-class _OtpInput extends StatelessWidget {
-  const _OtpInput({
-    required this.controller,
-    required this.focusNode,
-    required this.length,
-    required this.hasError,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final int length;
-  final bool hasError;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => focusNode.requestFocus(),
-      child: Stack(
-        children: [
-          ListenableBuilder(
-            listenable: Listenable.merge([controller, focusNode]),
-            builder: (context, _) {
-              final text = controller.text;
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(length, (i) {
-                  final filled = i < text.length;
-                  final current = focusNode.hasFocus && i == text.length;
-                  final borderColor = hasError
-                      ? AppColors.primaryDark
-                      : (filled || current)
-                          ? AppColors.primary
-                          : AppColors.border;
-                  return Container(
-                    height: 52,
-                    width: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: AppRadius.mdAll,
-                      border: Border.all(
-                        color: borderColor,
-                        width: (filled || current || hasError) ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      filled ? text[i] : '-',
-                      style: AppTextStyles.h2.copyWith(
-                        fontSize: 20,
-                        color: filled ? AppColors.textPrimary : AppColors.textMuted,
-                      ),
-                    ),
-                  );
-                }),
-              );
-            },
-          ),
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0,
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(length),
-                ],
-                showCursor: false,
-                enableInteractiveSelection: false,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  counterText: '',
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ── Password helpers ──────────────────────────────────────────────────────────
-
-class _PasswordRules {
-  _PasswordRules(this.text);
-  final String text;
-
-  bool get length => text.length >= 8;
-  bool get uppercase => text.contains(RegExp(r'[A-Z]'));
-  bool get number => text.contains(RegExp(r'[0-9]'));
-  bool get special => text.contains(RegExp(r'[^A-Za-z0-9]'));
-  bool get allMet => length && uppercase && number && special;
-}
-
-class _PasswordRuleList extends StatelessWidget {
-  const _PasswordRuleList({required this.rules});
-  final _PasswordRules rules;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _RuleItem('8+ characters', rules.length),
-              const SizedBox(height: 6),
-              _RuleItem('One number', rules.number),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _RuleItem('One uppercase', rules.uppercase),
-              const SizedBox(height: 6),
-              _RuleItem('Special character', rules.special),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RuleItem extends StatelessWidget {
-  const _RuleItem(this.label, this.met);
-  final String label;
-  final bool met;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          met ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-          size: 14,
-          color: met ? AppColors.success : AppColors.textMuted,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: AppTextStyles.caption.copyWith(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: met ? AppColors.success : AppColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _PasswordField extends StatefulWidget {
   const _PasswordField({

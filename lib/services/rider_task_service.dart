@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:rider_app/models/dashboard_models.dart';
+import 'package:rider_app/models/earnings_models.dart';
 import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/services/api_client.dart';
 import 'package:rider_app/services/location_service.dart';
@@ -192,6 +193,9 @@ class RiderTaskService {
         RiderOptions.fromJson(_map((await apiClient.get('/api/rider/options')).data)));
     return _options = fresh;
   }
+
+  Future<EarningsData> earnings() => _call(() async =>
+      EarningsData.fromJson(_map((await apiClient.get('/api/rider/earnings')).data)));
 
   Future<List<RiderNotification>> notifications() => _call(() async {
         final res = await apiClient.get('/api/rider/notifications');

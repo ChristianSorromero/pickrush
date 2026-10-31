@@ -10,7 +10,7 @@ import 'package:rider_app/riderpages/account_screen.dart';
 import 'package:rider_app/riderpages/login.dart';
 import 'package:rider_app/riderpages/pickups/batch_routes.dart';
 import 'package:rider_app/riderpages/pickups/pickups_screen.dart';
-import 'package:rider_app/riderpages/placeholder_page.dart';
+import 'package:rider_app/riderpages/earnings_screen.dart';
 import 'package:rider_app/riderpages/rider_dashboard.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/auth_service.dart';
@@ -106,7 +106,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           DashboardScreen(onSeeAllPickups: () => setState(() => _index = 1)),
           const PickupsScreen(),
           const PickupsScreen(type: BatchType.delivery),
-          const PlaceholderScreen(title: 'Earnings'),
+          const EarningsScreen(),
           const AccountScreen(),
         ],
       ),

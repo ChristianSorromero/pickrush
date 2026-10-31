@@ -16,6 +16,10 @@ class AppTextField extends StatefulWidget {
     this.prefixIcon,
     this.isPassword = false,
     this.validator,
+    this.textInputAction,
+    this.onSubmitted,
+    this.onChanged,
+    this.autofillHints,
   });
 
   final String label;
@@ -25,6 +29,12 @@ class AppTextField extends StatefulWidget {
   final IconData? prefixIcon;
   final bool isPassword;
   final String? Function(String?)? validator;
+
+  /// Keyboard action key (Next / Done) and what it does.
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
+  final Iterable<String>? autofillHints;
 
   @override
   State<AppTextField> createState() => _AppTextFieldState();
@@ -62,6 +72,10 @@ class _AppTextFieldState extends State<AppTextField> {
             keyboardType: widget.keyboardType,
             obscureText: _obscure,
             validator: widget.validator,
+            textInputAction: widget.textInputAction,
+            onFieldSubmitted: widget.onSubmitted,
+            onChanged: widget.onChanged,
+            autofillHints: widget.autofillHints,
             style: AppTextStyles.bodyStrong,
             decoration: InputDecoration(
               hintText: widget.hint,
