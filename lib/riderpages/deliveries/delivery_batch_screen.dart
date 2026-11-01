@@ -7,7 +7,6 @@ import 'package:rider_app/format_utils.dart';
 import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/riderpages/deliveries/deliver_screen.dart';
 import 'package:rider_app/riderpages/deliveries/load_scan_sheet.dart';
-import 'package:rider_app/riderpages/deliveries/return_to_hub_screen.dart';
 import 'package:rider_app/riderpages/pickups/new_assignment_screen.dart';
 import 'package:rider_app/riderpages/pickups/orders_to_collect_screen.dart';
 import 'package:rider_app/riderpages/pickups/report_problem_sheet.dart';
@@ -142,7 +141,7 @@ class _DeliveryBatchScreenState extends State<DeliveryBatchScreen> {
   }
 
   Future<void> _returnToHub() async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReturnToHubScreen(batch: _batch)));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => stationScreen(_batch)));
     _load();
   }
 
@@ -201,11 +200,26 @@ class _DeliveryBatchScreenState extends State<DeliveryBatchScreen> {
     final loaded = b.items.where((i) => i.isLoaded).length;
     final total = b.items.length;
     final missing = total - loaded;
+    // Everything on the vehicle: starting the route is the only thing left, so it is the main button.
+    if (missing == 0) {
+      return ElevatedButton.icon(
+        onPressed: _starting ? null : _startRoute,
+        icon: _starting
+            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.play_arrow_rounded),
+        label: const Text('Start Route'),
+        style: _primary.copyWith(
+          textStyle: WidgetStatePropertyAll(AppTextStyles.button),
+          elevation: const WidgetStatePropertyAll(3),
+          shadowColor: WidgetStatePropertyAll(AppColors.primary.withValues(alpha: 0.5)),
+        ),
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         ElevatedButton.icon(
-          onPressed: missing == 0 ? null : _scan,
+          onPressed: _scan,
           icon: const Icon(Icons.qr_code_scanner_rounded),
           label: const Text('Scan Parcel'),
           style: _primary,
@@ -213,12 +227,10 @@ class _DeliveryBatchScreenState extends State<DeliveryBatchScreen> {
         AppSpacing.gapSm,
         OutlinedButton(
           onPressed: loaded == 0 || _starting ? null : _startRoute,
-          style: _outlined.copyWith(
-            backgroundColor: WidgetStatePropertyAll(missing == 0 ? AppColors.primarySoft : null),
-          ),
+          style: _outlined,
           child: _starting
               ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(missing == 0 ? 'Start Route' : 'Start Route ($missing not scanned)'),
+              : Text('Start Route ($missing not scanned)'),
         ),
       ],
     );

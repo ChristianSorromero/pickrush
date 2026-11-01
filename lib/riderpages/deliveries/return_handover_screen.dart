@@ -7,11 +7,9 @@ import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/format_utils.dart';
 import 'package:rider_app/models/batch_models.dart';
+import 'package:rider_app/riderpages/handover_parts.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
-import 'package:rider_app/widgets/app_button.dart';
-import 'package:rider_app/widgets/surface_card.dart';
-import 'package:rider_app/widgets/tag_chip.dart';
 
 /// At the station after a delivery route: hand in the COD cash (the station
 /// records it on its Cash page) and each parcel not delivered (they scan it in
@@ -59,9 +57,17 @@ class _ReturnHandoverScreenState extends State<ReturnHandoverScreen> {
   @override
   Widget build(BuildContext context) {
     final b = _batch;
-    final done = b.status == BatchStatus.completed;
+    final complete = b.status == BatchStatus.completed;
     final returns = b.returns;
+    bool isReturned(BatchItem i) => i.status == ItemStatus.returned;
+    final returned = returns.where(isReturned).length;
     final hasCash = b.codCollected > 0;
+    final cashDone = !hasCash || b.remitted;
+
+    // Progress: the cash counts as one step, each parcel as one.
+    final total = (hasCash ? 1 : 0) + returns.length;
+    final done = (hasCash && b.remitted ? 1 : 0) + returned;
+    var step = 0;
 
     return Scaffold(
       body: SafeArea(
@@ -79,106 +85,54 @@ class _ReturnHandoverScreenState extends State<ReturnHandoverScreen> {
                   visualDensity: VisualDensity.compact,
                 ),
               ),
-              Text(done ? 'Batch complete!' : 'Hand over at the station', style: AppTextStyles.h1),
-              Text('#${b.batchNo} · ${b.dropOff?.name ?? ''}', style: AppTextStyles.body),
+              HandoverHeader(batch: b, done: done, total: total, complete: complete),
+              AppSpacing.gapSm,
+              Text('${b.deliveredCount} delivered · ${b.failedCount} not delivered', style: AppTextStyles.caption),
               AppSpacing.gapLg,
-              if (done)
-                SurfaceCard(
+              if (hasCash) ...[
+                HandoverStep(
+                  number: ++step,
+                  title: 'Hand over cash',
+                  done: cashDone,
+                  status: cashDone ? 'Remitted' : 'Waiting',
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.verified_rounded, size: 44, color: AppColors.success),
-                      AppSpacing.gapSm,
-                      Text('${b.deliveredCount} delivered · ${b.failedCount} returned', style: AppTextStyles.h2),
-                      if (b.estEarnings > 0) ...[
-                        AppSpacing.gapSm,
-                        Text('You earned ${FormatUtils.peso(b.estEarnings)} on this batch',
-                            style: AppTextStyles.bodyStrong.copyWith(color: AppColors.success)),
-                      ],
+                      Text(FormatUtils.peso(b.remitted ? b.codCollected : b.toRemit),
+                          style: AppTextStyles.display.copyWith(fontSize: 26)),
+                      if (!cashDone)
+                        Text('Give the COD cash to the station cashier. They count it and record it.',
+                            style: AppTextStyles.caption),
                     ],
                   ),
                 ),
-              if (done) AppSpacing.gapLg,
-              Text('CASH', style: AppTextStyles.overline),
-              AppSpacing.gapSm,
-              SurfaceCard(
-                child: Row(
-                  children: [
-                    Icon(
-                      !hasCash || b.remitted ? Icons.check_circle_rounded : Icons.payments_outlined,
-                      color: !hasCash || b.remitted ? AppColors.success : AppColors.primaryDark,
-                    ),
-                    AppSpacing.gapMd,
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            !hasCash
-                                ? 'No cash to remit'
-                                : b.remitted
-                                    ? '${FormatUtils.peso(b.codCollected)} remitted'
-                                    : 'Remit ${FormatUtils.peso(b.toRemit)}',
-                            style: AppTextStyles.bodyStrong,
-                          ),
-                          if (hasCash && !b.remitted)
-                            Text('Hand the cash to the station cashier. They count it and record it.',
-                                style: AppTextStyles.caption),
-                        ],
-                      ),
-                    ),
-                    if (hasCash)
-                      b.remitted
-                          ? const TagChip.success(label: 'Remitted')
-                          : const TagChip.warning(label: 'Waiting'),
-                  ],
-                ),
-              ),
-              AppSpacing.gapLg,
-              Text('PARCELS TO RETURN', style: AppTextStyles.overline),
-              AppSpacing.gapSm,
-              if (returns.isEmpty)
-                SurfaceCard(child: Text('Everything was delivered. Nothing to return.', style: AppTextStyles.body))
-              else
-                for (final item in returns)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: SurfaceCard(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-                      child: Row(
-                        children: [
-                          Icon(
-                            item.status == ItemStatus.returned ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                            color: item.status == ItemStatus.returned ? AppColors.success : AppColors.textMuted,
-                          ),
-                          AppSpacing.gapMd,
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(item.trackingNo, style: AppTextStyles.bodyStrong),
-                                if (item.note != null) Text(item.note!, style: AppTextStyles.caption),
-                              ],
-                            ),
-                          ),
-                          item.status == ItemStatus.returned
-                              ? const TagChip.success(label: 'Received')
-                              : Text('Waiting for scan', style: AppTextStyles.caption),
-                        ],
-                      ),
-                    ),
+                AppSpacing.gapMd,
+              ],
+              if (returns.isNotEmpty) ...[
+                HandoverStep(
+                  number: ++step,
+                  title: 'Hand back parcels',
+                  done: returned == returns.length,
+                  status: returned == returns.length ? 'All received' : '${returns.length - returned} waiting',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!complete)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: Text('Parcels you could not deliver. The staff scan each one in at Receiving.',
+                              style: AppTextStyles.caption),
+                        ),
+                      ParcelChecklist(items: returns, isDone: isReturned),
+                    ],
                   ),
-              if (!done) ...[
-                AppSpacing.gapSm,
-                Text('This page updates as the station records the cash and scans the parcels.',
-                    textAlign: TextAlign.center, style: AppTextStyles.caption),
-              ],
-              if (done) ...[
-                AppSpacing.gapLg,
-                AppButton(
-                  label: 'Back to home',
-                  onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
                 ),
+                AppSpacing.gapMd,
               ],
+              if (!hasCash && returns.isEmpty)
+                Text('Everything was delivered and there is no cash to remit.', style: AppTextStyles.body),
+              AppSpacing.gapMd,
+              HandoverFooter(complete: complete),
             ],
           ),
         ),

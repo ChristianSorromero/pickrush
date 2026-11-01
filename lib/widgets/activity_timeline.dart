@@ -6,9 +6,13 @@ import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/models/dashboard_models.dart';
 
 class ActivityTimeline extends StatelessWidget {
-  const ActivityTimeline({super.key, required this.items});
+  const ActivityTimeline({super.key, required this.items, this.clockTime = false});
 
   final List<ActivityItem> items;
+
+  /// Show the time of day ("10:42 AM") instead of "5 mins ago", for lists
+  /// grouped under a day header.
+  final bool clockTime;
 
   @override
   Widget build(BuildContext context) {
@@ -21,17 +25,23 @@ class ActivityTimeline extends StatelessWidget {
     return Column(
       children: [
         for (var i = 0; i < items.length; i++)
-          _ActivityTile(item: items[i], isLast: i == items.length - 1),
+          _ActivityTile(item: items[i], isLast: i == items.length - 1, clockTime: clockTime),
       ],
     );
   }
 }
 
 class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.item, required this.isLast});
+  const _ActivityTile({required this.item, required this.isLast, required this.clockTime});
 
   final ActivityItem item;
   final bool isLast;
+  final bool clockTime;
+
+  String _subtitle(BuildContext context) {
+    if (!clockTime || item.at == null) return item.subtitle;
+    return [TimeOfDay.fromDateTime(item.at!).format(context), if (item.place != null) item.place!].join(' · ');
+  }
 
   ({IconData icon, Color color, Color bg}) get _style => switch (item.type) {
         ActivityType.delivered => (
@@ -91,7 +101,7 @@ class _ActivityTile extends StatelessWidget {
                 children: [
                   Text(item.title, style: AppTextStyles.bodyStrong),
                   const SizedBox(height: 2),
-                  Text(item.subtitle, style: AppTextStyles.caption),
+                  Text(_subtitle(context), style: AppTextStyles.caption),
                 ],
               ),
             ),

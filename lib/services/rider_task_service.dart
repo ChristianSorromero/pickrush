@@ -197,6 +197,13 @@ class RiderTaskService {
   Future<EarningsData> earnings() => _call(() async =>
       EarningsData.fromJson(_map((await apiClient.get('/api/rider/earnings')).data)));
 
+  /// The activity history, newest first: [kind] is pickup or delivery; [before]
+  /// is the `next` cursor of the previous page.
+  Future<ActivityPage> activity(String kind, {String? before}) => _call(() async =>
+      ActivityPage.fromJson(_map((await apiClient.get('/api/rider/activity',
+              queryParameters: {'kind': kind, if (before != null) 'before': before}))
+          .data)));
+
   Future<List<RiderNotification>> notifications() => _call(() async {
         final res = await apiClient.get('/api/rider/notifications');
         return [

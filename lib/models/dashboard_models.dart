@@ -21,13 +21,19 @@ class ActivityItem {
     required this.type,
     required this.title,
     required this.subtitle,
+    this.at,
+    this.place,
   });
 
   final ActivityType type;
   final String title;
-  final String subtitle;
 
-  /// One line of `activity` from `/api/rider/dashboard`.
+  /// "5 mins ago · place", for the dashboard.
+  final String subtitle;
+  final DateTime? at;
+  final String? place;
+
+  /// One line of `activity` from `/api/rider/dashboard` or `/api/rider/activity`.
   factory ActivityItem.fromJson(Map<String, dynamic> j) {
     final count = (j['count'] as int?) ?? 1;
     final at = DateTime.tryParse(j['at'] as String? ?? '')?.toLocal();
@@ -39,8 +45,26 @@ class ActivityItem {
         if (at != null) timeAgo(at),
         if (place != null && place.isNotEmpty) place,
       ].join(' · '),
+      at: at,
+      place: place == null || place.isEmpty ? null : place,
     );
   }
+}
+
+/// One page of the activity history; pass [next] back to get older lines.
+class ActivityPage {
+  const ActivityPage({required this.items, this.next});
+  final List<ActivityItem> items;
+
+  /// Cursor for the next (older) page; null when there is nothing older.
+  final String? next;
+
+  factory ActivityPage.fromJson(Map<String, dynamic> j) => ActivityPage(
+        items: [
+          for (final a in j['activity'] as List) ActivityItem.fromJson(Map<String, dynamic>.from(a as Map)),
+        ],
+        next: j['next'] as String?,
+      );
 }
 
 /// "just now", "5 mins ago", "2 hours ago", "3 days ago".

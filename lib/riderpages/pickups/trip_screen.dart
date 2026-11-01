@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
+import 'package:rider_app/format_utils.dart';
 import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/riderpages/deliveries/deliver_screen.dart';
 import 'package:rider_app/riderpages/deliveries/return_handover_screen.dart';
@@ -17,15 +18,21 @@ import 'package:rider_app/services/location_service.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/slide_to_accept.dart';
-import 'package:rider_app/widgets/surface_card.dart';
-import 'package:rider_app/widgets/tag_chip.dart';
 
-/// On the way to a seller ([stopNumber]) or, without one, to the station.
+/// Every stop is done: the trip to the station, or its handover checklist
+/// when the rider already slid "Arrived at Hub".
+Widget stationScreen(RiderBatch batch) {
+  if (batch.dropOff?.arrivedAt == null) return TripScreen(batch: batch);
+  return batch.isDelivery ? ReturnHandoverScreen(batch: batch) : HandoverScreen(batch: batch);
+}
+
+/// On the way to a stop ([stopNumber]) or, without one, to the station.
 ///
-/// Turn-by-turn happens in the free Google Maps app; this screen keeps what the
-/// rider needs around it: live distance and ETA from the phone's GPS, call /
-/// text, and the "Arrived" slider. The slider only locks to the pin when the
-/// server enforces the arrival radius; otherwise the distance is just recorded.
+/// Destination first: where to go and what to do there, one button that opens
+/// turn-by-turn in Google Maps, call / text, and the "Arrived" slider pinned
+/// to the bottom so it never needs scrolling. The slider only locks to the pin
+/// when the server enforces the arrival radius; otherwise the distance is just
+/// recorded.
 class TripScreen extends StatefulWidget {
   const TripScreen({super.key, required this.batch, this.stopNumber});
 
@@ -43,17 +50,26 @@ class _TripScreenState extends State<TripScreen> {
   GpsFix? _fix;
   LocationProblem? _gpsProblem;
 
+  RiderBatch get b => widget.batch;
   BatchStop? get _stop => widget.stopNumber == null
       ? null
-      : widget.batch.stops.firstWhere((s) => s.number == widget.stopNumber);
+      : b.stops.firstWhere((s) => s.number == widget.stopNumber);
   bool get _toHub => widget.stopNumber == null;
 
-  Pin? get _pin => _toHub ? widget.batch.dropOff?.pin : _stop?.pin;
-  bool get _delivery => widget.batch.isDelivery;
-  String get _name => _toHub ? (widget.batch.dropOff?.name ?? 'Station') : _stop!.name;
-  String? get _address => _toHub ? widget.batch.dropOff?.address : _stop?.address;
-  String? get _phone => _toHub ? widget.batch.dropOff?.manager?.mobile : _stop?.mobile;
-  bool get _alreadyArrived => _toHub ? widget.batch.dropOff?.arrivedAt != null : _stop!.hasArrived;
+  Pin? get _pin => _toHub ? b.dropOff?.pin : _stop?.pin;
+  bool get _delivery => b.isDelivery;
+  String get _name => _toHub ? (b.dropOff?.name ?? 'Station') : _stop!.name;
+  String? get _address => _toHub ? b.dropOff?.address : _stop?.address;
+  String? get _phone => _toHub ? b.dropOff?.manager?.mobile : _stop?.mobile;
+  bool get _alreadyArrived => _toHub ? b.dropOff?.arrivedAt != null : _stop!.hasArrived;
+
+  /// Who the call / text goes to.
+  String get _contact => _toHub
+      ? 'hub manager'
+      : switch (_stop!.kind) {
+          'delivery' => 'buyer',
+          _ => 'seller',
+        };
 
   double? get _metres =>
       _fix != null && _pin != null ? LocationService.metres(_fix!, _pin!) : null;
@@ -61,15 +77,15 @@ class _TripScreenState extends State<TripScreen> {
   /// Far from a pinned stop (only a warning unless the radius is enforced).
   bool get _far {
     final m = _metres;
-    return m != null && m > widget.batch.arrivalRadiusM + math.min(_fix!.accuracy, 50);
+    return m != null && m > b.arrivalRadiusM + math.min(_fix!.accuracy, 50);
   }
 
   /// Allowed to slide "Arrived" (the server checks again).
   bool get _unlocked {
-    if (!widget.batch.arrivalLocked) return true; // GPS is read when sliding
+    if (!b.arrivalLocked) return true; // GPS is read when sliding
     if (_fix == null) return false;
     if (_pin == null) return true; // no pin: recorded, not checked
-    return _metres! <= widget.batch.arrivalRadiusM + math.min(_fix!.accuracy, 50);
+    return _metres! <= b.arrivalRadiusM + math.min(_fix!.accuracy, 50);
   }
 
   @override
@@ -97,19 +113,20 @@ class _TripScreenState extends State<TripScreen> {
   Future<void> _openMaps() async {
     final ok = await Launcher.navigate(
         pin: _pin, fallback: [_name, _address].whereType<String>().join(', '));
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Could not open Google Maps.')));
-    }
+    if (!ok && mounted) _toast('Could not open Google Maps.');
+  }
+
+  Future<void> _fixGps() async {
+    if (_gpsProblem?.openSettings ?? false) await locationService.openSettings();
+    _listen();
   }
 
   Future<void> _arrive() async {
     try {
       final fix = _fix ?? await locationService.current();
       final batch = _toHub
-          ? await riderTasks.arriveAtHub(widget.batch.id, fix)
-          : await riderTasks.arriveAtStop(widget.batch.id,
-              [for (final i in _stop!.open) i.assignmentId], fix);
+          ? await riderTasks.arriveAtHub(b.id, fix)
+          : await riderTasks.arriveAtStop(b.id, [for (final i in _stop!.open) i.assignmentId], fix);
       if (!mounted) return;
       _next(batch);
     } on TaskException catch (e) {
@@ -131,22 +148,66 @@ class _TripScreenState extends State<TripScreen> {
     ));
   }
 
-  void _toast(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-    }
+  void _text() {
+    final stop = _stop;
+    Launcher.sms(_phone!,
+        body: _toHub
+            ? 'Pickrush rider for batch #${b.batchNo}: heading to the station.'
+            : _delivery
+                ? 'Hi! This is your Pickrush rider. I am on my way with your parcel${stop!.parcelCount == 1 ? '' : 's'}${stop.codTotal > 0 ? '. Please prepare ${FormatUtils.peso(stop.codTotal)} (cash on delivery)' : ''}.'
+                : 'Hi! This is your Pickrush rider for batch #${b.batchNo}. I am on my way to collect your parcels.');
   }
+
+  void _toast(String message) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// "STOP 2 OF 3 · PICKUP", or the station.
+  String get _overline {
+    if (_toHub) return _delivery ? 'BACK TO THE STATION' : 'DROP-OFF AT THE STATION';
+    final what = switch (_stop!.kind) {
+      'delivery' => 'DELIVERY',
+      'return' => 'RETURN TO SELLER',
+      _ => 'PICKUP',
+    };
+    return 'STOP ${_stop!.number} OF ${b.stops.length} · $what';
+  }
+
+  /// What the rider does when they get there.
+  List<String> get _todo {
+    if (_toHub) {
+      if (_delivery) {
+        return [
+          if (b.toReturnCount > 0) 'Hand back ${_parcels(b.toReturnCount)} not delivered',
+          if (b.toRemit > 0) 'Remit ${FormatUtils.peso(b.toRemit)} COD cash',
+          if (b.toReturnCount == 0 && b.toRemit <= 0) 'Check in with the station',
+        ];
+      }
+      return [
+        'Hand over ${_parcels(b.carrying)}',
+        if (b.notCollectedCount > 0) '${b.notCollectedCount} not collected: the station will reassign',
+      ];
+    }
+    final stop = _stop!;
+    final n = stop.open.length;
+    return switch (stop.kind) {
+      'delivery' => [
+          'Deliver ${_parcels(n)}',
+          if (stop.codTotal > 0) 'Collect ${FormatUtils.peso(stop.codTotal)} cash',
+        ],
+      'return' => ['Return ${_parcels(n)} to the seller'],
+      _ => ['Collect ${_parcels(n)}'],
+    };
+  }
+
+  static String _parcels(int n) => '$n ${n == 1 ? 'parcel' : 'parcels'}';
 
   @override
   Widget build(BuildContext context) {
-    final metres = _metres;
-    final radius = widget.batch.arrivalRadiusM;
-
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenH, vertical: AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenH, AppSpacing.lg, AppSpacing.screenH, AppSpacing.lg),
           children: [
             Align(
               alignment: Alignment.centerLeft,
@@ -156,156 +217,106 @@ class _TripScreenState extends State<TripScreen> {
                 visualDensity: VisualDensity.compact,
               ),
             ),
-            AppSpacing.gapSm,
-            _RoutePanel(
-              toHub: _toHub,
-              name: _name,
-              metres: metres,
+            Text(_overline, style: AppTextStyles.overline.copyWith(color: AppColors.primaryDark)),
+            const SizedBox(height: 4),
+            Text(_name, style: AppTextStyles.h1),
+            if (_address != null && _address!.isNotEmpty) ...[
+              AppSpacing.gapSm,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.location_on_outlined, size: 18, color: AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(_address!, style: AppTextStyles.body)),
+                ],
+              ),
+            ],
+            AppSpacing.gapMd,
+            for (final line in _todo)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_box_outline_blank_rounded, size: 18, color: AppColors.primaryDark),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(line, style: AppTextStyles.bodyStrong)),
+                  ],
+                ),
+              ),
+            AppSpacing.gapLg,
+            _DirectionsCard(
+              metres: _metres,
               hasPin: _pin != null,
               gpsProblem: _gpsProblem,
               waitingForGps: _fix == null && _gpsProblem == null,
               onOpenMaps: _openMaps,
-              onFixGps: () async {
-                if (_gpsProblem?.openSettings ?? false) await locationService.openSettings();
-                _listen();
-              },
+              onFixGps: _fixGps,
             ),
-            AppSpacing.gapMd,
-            if (_phone != null)
+            if (_phone != null) ...[
+              AppSpacing.gapMd,
               Row(
                 children: [
-                  _RoundAction(icon: Icons.call_outlined, label: 'Call', onTap: () => Launcher.call(_phone!)),
-                  AppSpacing.gapMd,
-                  _RoundAction(
-                    icon: Icons.sms_outlined,
-                    label: 'Text',
-                    onTap: () => Launcher.sms(_phone!,
-                        body: _toHub
-                            ? 'Pickrush rider for batch #${widget.batch.batchNo}: heading to the station.'
-                            : _delivery
-                                ? 'Hi! This is your Pickrush rider. I am on my way with your parcel${_stop!.parcelCount == 1 ? '' : 's'}${_stop!.codTotal > 0 ? '. Please prepare ₱${_stop!.codTotal.toStringAsFixed(2)} (cash on delivery)' : ''}.'
-                                : 'Hi! This is your Pickrush rider for batch #${widget.batch.batchNo}. I am on my way to collect your parcels.'),
+                  Expanded(
+                    child: _ContactButton(
+                      icon: Icons.call_outlined,
+                      label: 'Call $_contact',
+                      onTap: () => Launcher.call(_phone!),
+                    ),
                   ),
-                  const Spacer(),
-                  Text(_toHub ? 'Hub manager' : (_stop!.kind == 'delivery' ? 'Buyer' : 'Seller'), style: AppTextStyles.caption),
+                  AppSpacing.gapMd,
+                  Expanded(
+                    child: _ContactButton(icon: Icons.sms_outlined, label: 'Text', onTap: _text),
+                  ),
                 ],
               ),
+            ],
             AppSpacing.gapMd,
-            SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _toHub
-                          ? const TagChip.warning(label: 'Heading to hub')
-                          : TagChip.warning(label: _delivery ? 'Out for delivery' : 'Ready for pickup'),
-                      const Spacer(),
-                      if (metres != null)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(LocationService.distanceLabel(metres),
-                                style: AppTextStyles.h2.copyWith(fontSize: 22)),
-                            Text(LocationService.etaLabel(metres), style: AppTextStyles.caption),
-                          ],
-                        ),
-                    ],
-                  ),
-                  AppSpacing.gapSm,
-                  Text('#${widget.batch.batchNo}', style: AppTextStyles.h1.copyWith(fontSize: 24)),
-                  Text(_name, style: AppTextStyles.body),
-                  if (_address != null && _address!.isNotEmpty) ...[
-                    AppSpacing.gapMd,
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.location_on_outlined, size: 18, color: AppColors.primaryDark),
-                        const SizedBox(width: 6),
-                        Expanded(child: Text(_address!, style: AppTextStyles.bodyStrong)),
-                      ],
-                    ),
-                  ],
-                  if (!_toHub && _stop != null) ...[
-                    AppSpacing.gapSm,
-                    Text('${_stop!.open.length} ${_stop!.open.length == 1 ? 'parcel' : 'parcels'} to ${_delivery ? 'deliver' : 'collect'}'
-                        '${_delivery && _stop!.codTotal > 0 ? ' · collect ₱${_stop!.codTotal.toStringAsFixed(2)}' : ''}',
-                        style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-                  ],
-                  AppSpacing.gapLg,
-                  if (_alreadyArrived)
-                    AppButton(
-                      label: _toHub ? 'Open handover checklist' : (_delivery ? 'Scan & deliver' : 'Scan waybills'),
-                      onPressed: () => _next(widget.batch),
-                    )
-                  else ...[
-                    if (!_unlocked)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.textMuted),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                _fix == null
-                                    ? 'Waiting for your location to unlock.'
-                                    : 'Unlocks within $radius m of the ${_toHub ? 'hub' : 'stop'}.',
-                                style: AppTextStyles.caption,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (_far)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Text(
-                          "You're about ${LocationService.distanceLabel(_metres!)} from the ${_toHub ? 'hub' : 'stop'}. Make sure you're at the right place.",
-                          style: AppTextStyles.caption.copyWith(color: AppColors.warning),
-                        ),
-                      )
-                    else if (_pin == null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Text(
-                          _toHub
-                              ? 'The station has no map pin yet; your location is recorded when you slide.'
-                              : 'This seller has no shop pin yet; your location is recorded when you slide.',
-                          style: AppTextStyles.caption,
-                        ),
-                      ),
-                    SlideToAccept(
-                      label: _toHub ? 'Arrived at Hub' : 'Arrived at Stop ${widget.stopNumber}',
-                      enabled: _unlocked,
-                      onSubmit: _arrive,
-                    ),
-                  ],
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () => showReportProblem(context, widget.batch.id),
-                      icon: const Icon(Icons.flag_outlined, size: 16),
-                      label: const Text('Report a problem'),
-                      style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-                    ),
-                  ),
-                ],
+            Center(
+              child: TextButton.icon(
+                onPressed: () => showReportProblem(context, b.id),
+                icon: const Icon(Icons.flag_outlined, size: 16),
+                label: const Text('Report a problem'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
               ),
             ),
           ],
         ),
       ),
+      bottomNavigationBar: _ArriveBar(
+        hint: _arriveHint,
+        hintIsWarning: !_alreadyArrived && _unlocked && _far,
+        child: _alreadyArrived
+            ? AppButton(
+                label: _toHub ? 'Open handover checklist' : (_delivery ? 'Scan & deliver' : 'Scan waybills'),
+                onPressed: () => _next(b),
+              )
+            : SlideToAccept(
+                label: _toHub ? 'Arrived at Hub' : 'Arrived at Stop ${widget.stopNumber}',
+                enabled: _unlocked,
+                onSubmit: _arrive,
+              ),
+      ),
     );
+  }
+
+  /// The one line above the slider: why it is locked, a distance warning, or
+  /// that the spot is recorded because there is no pin.
+  String? get _arriveHint {
+    if (_alreadyArrived) return null;
+    final place = _toHub ? 'hub' : 'stop';
+    if (!_unlocked) {
+      return _fix == null ? 'Waiting for your location to unlock.' : 'Unlocks within ${b.arrivalRadiusM} m of the $place.';
+    }
+    if (_far) return "You're about ${LocationService.distanceLabel(_metres!)} away. Make sure you're at the right place.";
+    if (_pin == null) return 'No map pin yet: your location is recorded when you slide.';
+    return null;
   }
 }
 
-/// Stands in for the map: where you are, where you are going, and the
-/// button that opens turn-by-turn in Google Maps.
-class _RoutePanel extends StatelessWidget {
-  const _RoutePanel({
-    required this.toHub,
-    required this.name,
+/// Distance, ETA and the button that opens turn-by-turn in Google Maps (or
+/// fixes location access when that is the problem).
+class _DirectionsCard extends StatelessWidget {
+  const _DirectionsCard({
     required this.metres,
     required this.hasPin,
     required this.gpsProblem,
@@ -314,8 +325,6 @@ class _RoutePanel extends StatelessWidget {
     required this.onFixGps,
   });
 
-  final bool toHub;
-  final String name;
   final double? metres;
   final bool hasPin;
   final LocationProblem? gpsProblem;
@@ -325,60 +334,27 @@ class _RoutePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final known = metres != null && gpsProblem == null;
     final String status;
     if (gpsProblem != null) {
       status = gpsProblem!.message;
-    } else if (waitingForGps) {
-      status = 'Finding your location…';
     } else if (!hasPin) {
       status = 'No map pin yet. Google Maps will search the address.';
+    } else if (waitingForGps) {
+      status = 'Finding your location…';
     } else {
-      status = '${LocationService.distanceLabel(metres!)} away · about ${LocationService.etaLabel(metres!)}';
+      status = 'about ${LocationService.etaLabel(metres!)} away';
     }
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.primarySoft,
-        borderRadius: AppRadius.lgAll,
-      ),
+      decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: AppRadius.lgAll),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const _Dot(icon: Icons.two_wheeler_rounded, filled: true),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (_, c) => Row(
-                    children: List.generate(
-                      (c.maxWidth / 10).floor(),
-                      (i) => Container(
-                        width: 5,
-                        height: 2,
-                        margin: const EdgeInsets.only(right: 5),
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              _Dot(icon: toHub ? Icons.apartment_rounded : Icons.storefront_rounded, filled: false),
-            ],
-          ),
-          AppSpacing.gapSm,
-          Row(
-            children: [
-              Text('You', style: AppTextStyles.caption),
-              const Spacer(),
-              Flexible(
-                child: Text(name,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-          AppSpacing.gapMd,
-          Text(status, textAlign: TextAlign.center, style: AppTextStyles.bodyStrong),
+          if (known)
+            Text(LocationService.distanceLabel(metres!), style: AppTextStyles.display.copyWith(fontSize: 30)),
+          Text(status, style: known ? AppTextStyles.body : AppTextStyles.bodyStrong),
           AppSpacing.gapMd,
           SizedBox(
             width: double.infinity,
@@ -387,80 +363,99 @@ class _RoutePanel extends StatelessWidget {
                     onPressed: onFixGps,
                     icon: const Icon(Icons.my_location_rounded, size: 18),
                     label: Text(gpsProblem!.openSettings ? 'Open settings' : 'Allow location'),
-                    style: _outlined,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.border),
+                      backgroundColor: AppColors.surface,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+                    ),
                   )
                 : ElevatedButton.icon(
                     onPressed: onOpenMaps,
-                    icon: const Icon(Icons.navigation_rounded, size: 18),
-                    label: const Text('Navigate in Google Maps'),
+                    icon: const Icon(Icons.navigation_rounded, size: 20),
+                    label: const Text('Open Google Maps'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      minimumSize: const Size.fromHeight(46),
+                      minimumSize: const Size.fromHeight(52),
+                      textStyle: AppTextStyles.button,
                       shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
                     ),
                   ),
           ),
-          const SizedBox(height: 6),
-          Text('Come back here and slide "Arrived" when you get there.',
-              textAlign: TextAlign.center, style: AppTextStyles.caption),
+          if (gpsProblem == null) ...[
+            const SizedBox(height: 6),
+            Text('Come back here and slide "Arrived" when you get there.', style: AppTextStyles.caption),
+          ],
         ],
       ),
     );
   }
-
-  static final _outlined = OutlinedButton.styleFrom(
-    foregroundColor: AppColors.textPrimary,
-    side: const BorderSide(color: AppColors.border),
-    backgroundColor: AppColors.surface,
-    minimumSize: const Size.fromHeight(46),
-    shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
-  );
 }
 
-class _Dot extends StatelessWidget {
-  const _Dot({required this.icon, required this.filled});
-  final IconData icon;
-  final bool filled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 40,
-      width: 40,
-      decoration: BoxDecoration(
-        color: filled ? AppColors.primary : AppColors.surface,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.primary, width: 2),
-      ),
-      child: Icon(icon, size: 20, color: filled ? Colors.white : AppColors.primaryDark),
-    );
-  }
-}
-
-class _RoundAction extends StatelessWidget {
-  const _RoundAction({required this.icon, required this.label, required this.onTap});
+class _ContactButton extends StatelessWidget {
+  const _ContactButton({required this.icon, required this.label, required this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          height: 44,
-          width: 44,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.primary, width: 1.5),
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label, overflow: TextOverflow.ellipsis),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primaryDark,
+        side: const BorderSide(color: AppColors.primary),
+        backgroundColor: AppColors.surface,
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+      ),
+    );
+  }
+}
+
+/// Pinned to the bottom of the screen: an optional hint, then the slider.
+class _ArriveBar extends StatelessWidget {
+  const _ArriveBar({required this.child, this.hint, this.hintIsWarning = false});
+  final Widget child;
+  final String? hint;
+  final bool hintIsWarning;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenH, AppSpacing.md, AppSpacing.screenH, AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hint != null) ...[
+                Row(
+                  children: [
+                    Icon(hintIsWarning ? Icons.warning_amber_rounded : Icons.info_outline_rounded,
+                        size: 16, color: hintIsWarning ? AppColors.warning : AppColors.textMuted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(hint!,
+                          style: AppTextStyles.caption.copyWith(color: hintIsWarning ? AppColors.warning : null)),
+                    ),
+                  ],
+                ),
+                AppSpacing.gapSm,
+              ],
+              child,
+            ],
           ),
-          child: Icon(icon, size: 20, color: AppColors.primaryDark),
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/models/dashboard_models.dart';
+import 'package:rider_app/riderpages/activity_screen.dart';
 import 'package:rider_app/riderpages/notifications_screen.dart';
 import 'package:rider_app/riderpages/pickups/batch_routes.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
@@ -205,7 +206,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
             AppSpacing.gapXxl,
-            const SectionHeader(title: 'Recent Activity'),
+            SectionHeader(
+              title: 'Recent Activity',
+              actionLabel: 'View All',
+              onActionTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ActivityScreen())),
+            ),
             AppSpacing.gapMd,
             ActivityTimeline(items: data.activity),
             AppSpacing.gapLg,

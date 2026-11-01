@@ -4,7 +4,6 @@ import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/models/batch_models.dart';
-import 'package:rider_app/riderpages/pickups/hub_handover_screen.dart';
 import 'package:rider_app/riderpages/pickups/new_assignment_screen.dart';
 import 'package:rider_app/riderpages/pickups/orders_to_collect_screen.dart';
 import 'package:rider_app/riderpages/pickups/scanner_screen.dart';
@@ -94,7 +93,7 @@ class _CurrentBatchScreenState extends State<CurrentBatchScreen> {
 
   Future<void> _headToHub() async {
     await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => HubHandoverScreen(batch: _batch)));
+        .push(MaterialPageRoute(builder: (_) => stationScreen(_batch)));
     _load();
   }
 

@@ -4,7 +4,7 @@ import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/models/batch_models.dart';
-import 'package:rider_app/riderpages/pickups/hub_handover_screen.dart';
+import 'package:rider_app/riderpages/pickups/trip_screen.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/services/scan_feedback.dart';
@@ -99,7 +99,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       ));
       if (batch.allPickedUp) {
         Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => HubHandoverScreen(batch: batch)));
+            MaterialPageRoute(builder: (_) => TripScreen(batch: batch)));
       } else {
         Navigator.of(context).pop(batch);
       }
