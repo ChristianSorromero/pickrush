@@ -52,13 +52,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Poll only while the rider is looking at the app.
+  // Poll fast while the rider is looking at the app, slowly in the background
+  // (each poll keeps them online; a closed app stops them and the server sets
+  // the rider offline).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       assignmentWatcher.start();
     } else if (state == AppLifecycleState.paused) {
-      assignmentWatcher.stop();
+      assignmentWatcher.background();
     }
   }
 

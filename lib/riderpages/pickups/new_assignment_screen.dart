@@ -509,9 +509,7 @@ void openBatchRoute(BuildContext context, RiderBatch b) async {
     for (final s in b.stops)
       if (!s.isPickedUp && s.address != null) s.address!,
   ];
-  final destination = b.dropOff == null
-      ? null
-      : [b.dropOff!.name, b.dropOff!.address].whereType<String>().join(', ');
+  final destination = b.dropOff?.searchText;
   final ok = destination == null
       ? (stops.isNotEmpty && await Launcher.navigateTo(stops.first))
       : await Launcher.route(stops, destination);

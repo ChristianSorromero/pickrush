@@ -111,7 +111,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '${FormatUtils.peso(d.pickupRate)} per pickup · ${FormatUtils.peso(d.deliveryRate)} per delivery. '
+                      '${FormatUtils.peso(d.pickupRate)} per pickup · '
+                      '${d.classRates.isEmpty ? '${FormatUtils.peso(d.deliveryRate)} per delivery' : 'delivery ${d.classRates.entries.map((e) => '${FormatUtils.peso(e.value)} ${e.key.toLowerCase()}').join(', ')}'}. '
                       'Failed attempts don\'t count. Your station handles payouts.',
                       style: AppTextStyles.caption,
                     ),

@@ -93,6 +93,7 @@ class EarningsData {
   const EarningsData({
     required this.pickupRate,
     required this.deliveryRate,
+    this.classRates = const {},
     required this.today,
     required this.week,
     required this.month,
@@ -103,6 +104,9 @@ class EarningsData {
 
   final double pickupRate;
   final double deliveryRate;
+
+  /// Delivery pay by parcel class (STANDARD, HEAVY, BULKY), lightest first.
+  final Map<String, double> classRates;
   final EarningsTotal today;
   final EarningsTotal week;
   final EarningsTotal month;
@@ -118,6 +122,9 @@ class EarningsData {
     return EarningsData(
       pickupRate: _d(rates['pickup']),
       deliveryRate: _d(rates['delivery']),
+      classRates: rates['classes'] is Map
+          ? {for (final e in m(rates['classes']).entries) e.key: _d(e.value)}
+          : const {},
       today: EarningsTotal.fromJson(m(j['today'])),
       week: EarningsTotal.fromJson(m(j['week'])),
       month: EarningsTotal.fromJson(m(j['month'])),

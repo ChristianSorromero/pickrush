@@ -469,11 +469,19 @@ class _ParcelTile extends StatelessWidget {
                 Text(stop.name, style: AppTextStyles.bodyStrong),
                 if (stop.address != null)
                   Text(stop.address!, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.caption),
-                Text([item.trackingNo, if (item.isReturn) 'return to seller'].join(' · '),
+                Text([
+                  item.trackingNo,
+                  if (item.isReturn) 'return to seller',
+                  if (item.riderPay > 0) 'earns ${FormatUtils.peso(item.riderPay)} when delivered',
+                ].join(' · '),
                     style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
               ],
             ),
           ),
+          if (item.isHeavy) ...[
+            TagChip.warning(label: item.parcelClass ?? 'Heavy'),
+            const SizedBox(width: 6),
+          ],
           itemStatusChip(item.status),
         ],
       ),

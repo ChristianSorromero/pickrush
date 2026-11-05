@@ -108,6 +108,9 @@ class BatchItem {
     this.codAmount = 0,
     this.note,
     this.doneAt,
+    this.parcelClass,
+    this.isHeavy = false,
+    this.riderPay = 0,
   });
 
   final int assignmentId;
@@ -127,6 +130,15 @@ class BatchItem {
   /// Why it was not collected / not delivered.
   final String? note;
   final DateTime? doneAt;
+
+  /// Marketplace parcels: STANDARD, HEAVY or BULKY (null for direct parcels).
+  final String? parcelClass;
+
+  /// HEAVY or BULKY: flagged so the rider knows before pickup.
+  final bool isHeavy;
+
+  /// What finishing this task pays (delivery pay follows the parcel class; failed attempts pay nothing).
+  final double riderPay;
 
   bool get isToPick => status == ItemStatus.toPick;
   bool get isPickedUp =>
@@ -150,6 +162,9 @@ class BatchItem {
         status: ItemStatus.parse(j['status'] as String?),
         note: j['note'] as String?,
         doneAt: _date(j['done_at']),
+        parcelClass: j['parcel_class'] as String?,
+        isHeavy: (j['is_heavy'] as bool?) ?? false,
+        riderPay: _double(j['rider_pay']) ?? 0,
       );
 }
 
@@ -251,8 +266,9 @@ class DropOff {
   final DateTime? arrivedAt;
   final HubContact? manager;
 
-  /// What Google Maps searches for when there is no pin.
-  String get searchText => [name, address].whereType<String>().join(', ');
+  /// What Google Maps searches for when there is no pin: the address alone
+  /// (the station's name is not a place Maps knows), the name only without one.
+  String get searchText => (address?.trim().isNotEmpty ?? false) ? address!.trim() : name;
 
   factory DropOff.fromJson(Map<String, dynamic> j) {
     final m = j['manager'] is Map ? Map<String, dynamic>.from(j['manager'] as Map) : null;

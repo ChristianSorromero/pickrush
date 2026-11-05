@@ -2,8 +2,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 
-/// What the rider hears and feels when scanning: a short beep for a good scan
-/// (like the station's web scanner), a double buzz for a refused one.
+/// What the rider hears and feels when scanning: a short beep for a good scan,
+/// and only a double buzz (no sound) for a declined one.
 class ScanFeedback {
   ScanFeedback._();
 

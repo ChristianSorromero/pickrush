@@ -89,9 +89,9 @@ class _SlideToAcceptState extends State<SlideToAccept> {
                 child: Container(
                   height: _knob,
                   width: _knob,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    shape: BoxShape.circle,   // round, like the pill it slides in
                   ),
                   child: _busy
                       ? const Padding(

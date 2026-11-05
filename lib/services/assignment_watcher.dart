@@ -12,12 +12,22 @@ import 'package:rider_app/services/rider_task_service.dart';
 ///
 /// Background push (app closed) needs Firebase Cloud Messaging; until then the
 /// rider sees offers as soon as they open the app.
+///
+/// Every poll is also the app's check-in: the server keeps an online rider
+/// online only while check-ins keep coming. In the background it slows to
+/// [backgroundInterval]; once the phone closes or freezes the app they stop,
+/// and after a few minutes the server sets the rider offline.
 class AssignmentWatcher extends ChangeNotifier {
-  AssignmentWatcher({this.interval = const Duration(seconds: 20)});
+  AssignmentWatcher({
+    this.interval = const Duration(seconds: 20),
+    this.backgroundInterval = const Duration(seconds: 60),
+  });
 
   final Duration interval;
+  final Duration backgroundInterval;
 
   Timer? _timer;
+  bool _inBackground = false;
   bool _polling = false;
   final Set<int> _announced = {};
   int? _latestNotificationId;
@@ -41,14 +51,25 @@ class AssignmentWatcher extends ChangeNotifier {
   bool get isRunning => _timer != null;
 
   void start() {
-    if (_timer != null) return;
+    if (_timer != null && !_inBackground) return;
+    _timer?.cancel();
+    _inBackground = false;
     _timer = Timer.periodic(interval, (_) => poll());
     poll();
+  }
+
+  /// The app left the screen: keep checking in, but slowly.
+  void background() {
+    if (_timer == null || _inBackground) return;
+    _timer!.cancel();
+    _inBackground = true;
+    _timer = Timer.periodic(backgroundInterval, (_) => poll());
   }
 
   void stop() {
     _timer?.cancel();
     _timer = null;
+    _inBackground = false;
   }
 
   /// Check now (also called after the rider acts, e.g. accepts a batch).

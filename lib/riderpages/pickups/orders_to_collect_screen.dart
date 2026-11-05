@@ -147,6 +147,10 @@ class _ParcelRow extends StatelessWidget {
                 )
               else
                 const Spacer(),
+              if (item.isHeavy) ...[
+                const SizedBox(width: 6),
+                TagChip.warning(label: item.parcelClass ?? 'Heavy'),
+              ],
               const SizedBox(width: 6),
               itemStatusChip(item.status),
             ],

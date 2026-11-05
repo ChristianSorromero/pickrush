@@ -60,7 +60,8 @@ class _TripScreenState extends State<TripScreen> {
   bool get _delivery => b.isDelivery;
   String get _name => _toHub ? (b.dropOff?.name ?? 'Station') : _stop!.name;
   String? get _address => _toHub ? b.dropOff?.address : _stop?.address;
-  String? get _phone => _toHub ? b.dropOff?.manager?.mobile : _stop?.mobile;
+  /// No calling or texting the buyer or seller until the batch is accepted.
+  String? get _phone => _toHub ? b.dropOff?.manager?.mobile : (b.isOffer ? null : _stop?.mobile);
   bool get _alreadyArrived => _toHub ? b.dropOff?.arrivedAt != null : _stop!.hasArrived;
 
   /// Who the call / text goes to.
@@ -111,8 +112,10 @@ class _TripScreenState extends State<TripScreen> {
   }
 
   Future<void> _openMaps() async {
-    final ok = await Launcher.navigate(
-        pin: _pin, fallback: [_name, _address].whereType<String>().join(', '));
+    // Search the address alone: a person's name in front of it ("Maria Flor, ...")
+    // makes Google Maps look for a place by that name and find nothing.
+    final address = _address?.trim() ?? '';
+    final ok = await Launcher.navigate(pin: _pin, fallback: address.isNotEmpty ? address : _name);
     if (!ok && mounted) _toast('Could not open Google Maps.');
   }
 
