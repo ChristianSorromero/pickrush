@@ -111,6 +111,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         MapEntry('last_name',                _d.lastName),
         MapEntry('birth_date',               _d.birthDate!.toIso8601String().substring(0, 10)),
         MapEntry('mobile',                   _d.mobile),
+        MapEntry('company_id',               _d.company!.id),
         MapEntry('hub_id',                   _d.hub!.id),
         MapEntry('province_code',            _d.province!.code),
         MapEntry('province_name',            _d.province!.name),
@@ -287,6 +288,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             onEdit: () => _popBack(2),
             children: [
               _InfoRow('Vehicle Type', _d.vehicleType?.label ?? '—'),
+              _InfoRow('Logistics Company', _d.company?.name ?? '—'),
               _InfoRow('Station Hub', _d.hub?.name ?? '—'),
             ],
           ),

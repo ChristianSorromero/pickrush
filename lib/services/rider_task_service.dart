@@ -197,6 +197,16 @@ class RiderTaskService {
   Future<EarningsData> earnings() => _call(() async =>
       EarningsData.fromJson(_map((await apiClient.get('/api/rider/earnings')).data)));
 
+  /// Agree with the station's count of the cash handed over. Returns the
+  /// server's message for the rider.
+  Future<String> confirmCashCount(int id) => _call(() async =>
+      _map((await apiClient.post('/api/rider/cash-counts/$id/confirm')).data)['message'] as String);
+
+  /// Say the count is wrong; the station counts the cash again with the rider.
+  Future<String> rejectCashCount(int id, String reason) => _call(() async =>
+      _map((await apiClient.post('/api/rider/cash-counts/$id/reject', data: {'reason': reason})).data)['message']
+          as String);
+
   /// The activity history, newest first: [kind] is pickup or delivery; [before]
   /// is the `next` cursor of the previous page.
   Future<ActivityPage> activity(String kind, {String? before}) => _call(() async =>

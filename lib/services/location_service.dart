@@ -45,7 +45,7 @@ class LocationService {
       throw LocationProblem('Allow location so we can confirm you arrived.');
     }
     if (permission == LocationPermission.deniedForever) {
-      throw LocationProblem('Location is blocked for Pickrush. Allow it in Settings.',
+      throw LocationProblem('Location is blocked for the rider app. Allow it in Settings.',
           openSettings: true);
     }
   }

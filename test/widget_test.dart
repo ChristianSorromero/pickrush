@@ -23,6 +23,7 @@ Map<String, dynamic> rejectedRider() => {
       'license_no': 'N01-23-456789',
       'license_expiry': '2028-05-15',
       'hub': {'id': '12', 'name': 'Quezon City Station', 'province': 'Metro Manila', 'city': 'Quezon City'},
+      'company': {'id': '3', 'name': 'Bilis Hatid Express', 'is_default': false},
       'applied_at': '2026-10-21T08:00:00+08:00',
     };
 
@@ -49,5 +50,15 @@ void main() {
     // Documents are attached again; the old files are replaced.
     expect(data.licenseFrontPath, isNull);
     expect(data.registrationPaths, isEmpty);
+  });
+
+  test('a rider belongs to one logistics company, kept when resubmitting', () {
+    final account = RiderAccount.fromJson(rejectedRider());
+    expect(account.company, const LogisticsCompany(id: '3', name: 'Bilis Hatid Express'));
+    expect(account.company!.isDefault, isFalse);
+    expect(RegisterData.resubmission(account).company?.name, 'Bilis Hatid Express');
+
+    final older = RiderAccount.fromJson({...rejectedRider()}..remove('company'));
+    expect(older.company, isNull);
   });
 }

@@ -239,7 +239,7 @@ class _Footer extends StatelessWidget {
             const Expanded(child: Divider(color: AppColors.border)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Text('New to Pickrush?', style: AppTextStyles.caption),
+              child: Text('New rider?', style: AppTextStyles.caption),
             ),
             const Expanded(child: Divider(color: AppColors.border)),
           ],
@@ -252,7 +252,7 @@ class _Footer extends StatelessWidget {
         ),
         AppSpacing.gapMd,
         Text(
-          'Pickrush Logistics · a PickSell company',
+          'PickSell Logistics · ride for a PickSell logistics partner',
           textAlign: TextAlign.center,
           style: AppTextStyles.caption,
         ),

@@ -24,6 +24,7 @@ class RegisterData {
       ..barangay = account.place('barangay')
       ..street = (r['street'] as String?) ?? ''
       ..email = account.email
+      ..company = account.company
       ..hub = station == null
           ? null
           : Hub(id: station.id, name: station.name, province: station.province ?? '', city: station.city)
@@ -52,6 +53,7 @@ class RegisterData {
   String emailVerificationToken = '';
 
   // Step 3
+  LogisticsCompany? company;
   Hub? hub;
   VehicleType? vehicleType;
 
@@ -64,9 +66,32 @@ class RegisterData {
   List<String> registrationPaths = [];
 }
 
+// ── Logistics company ─────────────────────────────────────────────────────────
+
+abstract class CompanyService {
+  /// Companies with a station taking riders near the address, the default company first.
+  Future<List<LogisticsCompany>> fetchNearby({required String cityCode, required String provinceCode});
+}
+
+class HttpCompanyService implements CompanyService {
+  @override
+  Future<List<LogisticsCompany>> fetchNearby({required String cityCode, required String provinceCode}) async {
+    try {
+      final res = await apiClient.get('/api/rider/companies',
+          queryParameters: {'city_code': cityCode, 'province_code': provinceCode});
+      final list = res.data['companies'] as List<dynamic>;
+      return list.map((e) => LogisticsCompany.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e));
+    }
+  }
+}
+
+final CompanyService companyService = HttpCompanyService();
+
 // ── Hub ───────────────────────────────────────────────────────────────────────
 
-/// A Picksell station hub the rider can apply to.
+/// A station hub of the chosen company that the rider can apply to.
 class Hub {
   const Hub({required this.id, required this.name, required this.province, this.city});
   final String id;
@@ -97,16 +122,16 @@ class NearbyHubs {
 }
 
 abstract class HubService {
-  /// Stations in the rider's city; if none, the rest of their province.
-  Future<NearbyHubs> fetchNearby({required String cityCode, required String provinceCode});
+  /// The company's stations in the rider's city; if none, the rest of their province.
+  Future<NearbyHubs> fetchNearby({required String cityCode, required String provinceCode, required String companyId});
 }
 
 class HttpHubService implements HubService {
   @override
-  Future<NearbyHubs> fetchNearby({required String cityCode, required String provinceCode}) async {
+  Future<NearbyHubs> fetchNearby({required String cityCode, required String provinceCode, required String companyId}) async {
     try {
       final res = await apiClient.get('/api/rider/stations',
-          queryParameters: {'city_code': cityCode, 'province_code': provinceCode});
+          queryParameters: {'city_code': cityCode, 'province_code': provinceCode, 'company_id': companyId});
       final scope = switch (res.data['scope']) {
         'city' => HubScope.city,
         'province' => HubScope.province,

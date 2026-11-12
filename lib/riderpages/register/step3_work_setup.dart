@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
+import 'package:rider_app/services/auth_service.dart';
 import 'register_shared.dart';
 import 'step4_documents.dart';
 
@@ -17,10 +18,13 @@ class WorkSetupScreen extends StatefulWidget {
 class _WorkSetupScreenState extends State<WorkSetupScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  List<LogisticsCompany> _companies = const [];
+  late LogisticsCompany? _company = widget.data.company;
   List<Hub> _hubs = const [];
   late Hub? _hub = widget.data.hub;
   late VehicleType? _type = widget.data.vehicleType;
 
+  bool _loadingCompanies = false;
   bool _loadingHubs = false;
   HubScope? _scope;
   String? _hubError;
@@ -28,6 +32,51 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCompanies();
+  }
+
+  /// Companies taking riders near the address. The default company is pre-selected unless the
+  /// rider already chose one (going back, or resubmitting).
+  Future<void> _loadCompanies() async {
+    setState(() {
+      _loadingCompanies = true;
+      _hubError = null;
+    });
+    try {
+      final companies = await companyService.fetchNearby(
+        cityCode: widget.data.city!.code,
+        provinceCode: widget.data.province!.code,
+      );
+      if (!mounted) return;
+      setState(() {
+        _companies = companies;
+        if (_company != null && !_companies.contains(_company)) _company = null;
+        _company ??= _companies.where((c) => c.isDefault).firstOrNull ?? _companies.firstOrNull;
+      });
+      if (_company == null) {
+        setState(() {
+          _hubs = const [];
+          _hub = null;
+          _scope = HubScope.none;
+        });
+      } else {
+        await _loadHubs();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _hubError = 'Could not load logistics companies. Please try again.');
+    } finally {
+      if (mounted) setState(() => _loadingCompanies = false);
+    }
+  }
+
+  void _onCompanyChanged(LogisticsCompany? company) {
+    if (company == null || company == _company) return;
+    setState(() {
+      _company = company;
+      _hub = null;
+      _hubs = const [];
+    });
     _loadHubs();
   }
 
@@ -45,6 +94,7 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
       final nearby = await hubService.fetchNearby(
         cityCode: widget.data.city!.code,
         provinceCode: widget.data.province!.code,
+        companyId: _company!.id,
       );
       if (!mounted) return;
       setState(() {
@@ -67,6 +117,7 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     widget.data
+      ..company = _company
       ..hub = _hub
       ..vehicleType = _type;
 
@@ -91,9 +142,27 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
           children: [
             if (_hubError != null) ...[
               RegisterErrorBanner(
-                  message: _hubError!, onRetry: _loadHubs),
+                  message: _hubError!,
+                  onRetry: _company == null ? _loadCompanies : _loadHubs),
               AppSpacing.gapLg,
             ],
+            RegisterLabeledField(
+              label: 'Logistics Company',
+              child: RegisterDropdown<LogisticsCompany>(
+                hint: 'Select a logistics company...',
+                value: _company,
+                items: _companies,
+                labelOf: (c) => c.name,
+                isLoading: _loadingCompanies,
+                onChanged: _companies.isEmpty ? null : _onCompanyChanged,
+              ),
+            ),
+            AppSpacing.gapSm,
+            Text(
+              'You ride for one company. Its station reviews your application.',
+              style: AppTextStyles.caption.copyWith(fontSize: 12),
+            ),
+            AppSpacing.gapLg,
             RegisterLabeledField(
               label: 'Station Hub',
               child: RegisterDropdown<Hub>(
@@ -101,7 +170,7 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
                 value: _hub,
                 items: _hubs,
                 labelOf: (h) => h.name,
-                isLoading: _loadingHubs,
+                isLoading: _loadingHubs || _loadingCompanies,
                 onChanged:
                     _hubs.isEmpty ? null : (h) => setState(() => _hub = h),
               ),
@@ -113,8 +182,9 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
                   'Stations in ${widget.data.city?.name}. This station reviews your application.',
                 HubScope.province =>
                   'No station in ${widget.data.city?.name} yet. Showing stations in ${widget.data.province?.name}.',
-                HubScope.none =>
-                  'No Pickrush station near your address is accepting riders yet. Please check again later.',
+                HubScope.none => _company == null
+                    ? 'No logistics company near your address is accepting riders yet. Please check again later.'
+                    : 'No ${_company!.name} station near your address is accepting riders yet. Try another company or check again later.',
                 null => 'The station you choose reviews your application.',
               },
               style: AppTextStyles.caption.copyWith(

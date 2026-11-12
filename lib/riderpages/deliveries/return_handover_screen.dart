@@ -10,6 +10,7 @@ import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/riderpages/handover_parts.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
+import 'package:rider_app/widgets/cash_count_confirm.dart';
 
 /// At the station after a delivery route: hand in the COD cash (the station
 /// records it on its Cash page) and each parcel not delivered (they scan it in
@@ -94,17 +95,20 @@ class _ReturnHandoverScreenState extends State<ReturnHandoverScreen> {
                   number: ++step,
                   title: 'Hand over cash',
                   done: cashDone,
-                  status: cashDone ? 'Remitted' : 'Waiting',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(FormatUtils.peso(b.remitted ? b.codCollected : b.toRemit),
-                          style: AppTextStyles.display.copyWith(fontSize: 26)),
-                      if (!cashDone)
-                        Text('Give the COD cash to the station cashier. They count it and record it.',
-                            style: AppTextStyles.caption),
-                    ],
-                  ),
+                  status: cashDone ? 'Remitted' : (b.cashCount != null ? 'Confirm the count' : 'Waiting'),
+                  child: b.cashCount != null
+                      // The station recorded its count: the rider confirms or rejects it here.
+                      ? CashCountConfirm(count: b.cashCount!, onAnswered: _refresh)
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(FormatUtils.peso(b.remitted ? b.codCollected : b.toRemit),
+                                style: AppTextStyles.display.copyWith(fontSize: 26)),
+                            if (!cashDone)
+                              Text('Give the COD cash to the station cashier. They count it, then you confirm their count here.',
+                                  style: AppTextStyles.caption),
+                          ],
+                        ),
                 ),
                 AppSpacing.gapMd,
               ],

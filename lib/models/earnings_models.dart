@@ -56,11 +56,50 @@ class FinishedBatch {
       );
 }
 
+/// The station's count of the cash the rider handed over, waiting for the
+/// rider to confirm it or reject it so it is counted again.
+class PendingCashCount {
+  const PendingCashCount({
+    required this.id,
+    required this.expected,
+    required this.counted,
+    required this.difference,
+    required this.payKept,
+    this.countedBy,
+    this.at,
+  });
+
+  final int id;
+
+  /// What the system says the rider should hand over.
+  final double expected;
+
+  /// What the station staff counted.
+  final double counted;
+
+  /// counted - expected: negative means the station counted less.
+  final double difference;
+  final double payKept;
+  final String? countedBy;
+  final DateTime? at;
+
+  factory PendingCashCount.fromJson(Map<String, dynamic> j) => PendingCashCount(
+        id: j['id'] as int,
+        expected: _d(j['expected']),
+        counted: _d(j['counted']),
+        difference: _d(j['difference']),
+        payKept: _d(j['pay_kept']),
+        countedBy: j['counted_by'] as String?,
+        at: DateTime.tryParse(j['at'] as String? ?? '')?.toLocal(),
+      );
+}
+
 class CodSummary {
   const CodSummary({
     required this.inHand,
     required this.limit,
     required this.remittedThisMonth,
+    this.pendingCount,
     this.lastAmount,
     this.lastAt,
     this.lastStatus,
@@ -70,10 +109,14 @@ class CodSummary {
   final double inHand;
   final double limit;
   final double remittedThisMonth;
+
+  /// A station count the rider still has to confirm or reject.
+  final PendingCashCount? pendingCount;
   final double? lastAmount;
   final DateTime? lastAt;
 
-  /// reconciled, or disputed (the counted cash did not match).
+  /// awaiting_rider (the rider has not answered the count yet), reconciled,
+  /// or disputed (the counted cash did not match).
   final String? lastStatus;
 
   factory CodSummary.fromJson(Map<String, dynamic> j) {
@@ -82,6 +125,9 @@ class CodSummary {
       inHand: _d(j['in_hand']),
       limit: _d(j['limit']),
       remittedThisMonth: _d(j['remitted_this_month']),
+      pendingCount: j['pending_count'] is Map
+          ? PendingCashCount.fromJson(Map<String, dynamic>.from(j['pending_count'] as Map))
+          : null,
       lastAmount: last == null ? null : _d(last['amount']),
       lastAt: last == null ? null : DateTime.tryParse(last['at'] as String? ?? '')?.toLocal(),
       lastStatus: last?['status'] as String?,

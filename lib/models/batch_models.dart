@@ -7,6 +7,8 @@
 ///   not delivered.
 library;
 
+import 'package:rider_app/models/earnings_models.dart';
+
 enum BatchType {
   pickup,
   delivery;
@@ -305,6 +307,7 @@ class RiderBatch {
     this.codCollected = 0,
     this.toRemit = 0,
     this.remitted = false,
+    this.cashCount,
     this.arrivalRadiusM = 150,
     this.arrivalLocked = false,
     this.offeredAt,
@@ -345,6 +348,10 @@ class RiderBatch {
   final double codCollected;
   final double toRemit;
   final bool remitted;
+
+  /// The station's count of this batch's cash, waiting for the rider to
+  /// confirm it or reject it on the handover screen.
+  final PendingCashCount? cashCount;
   final DateTime? lastDeliveryAt;
 
   bool get isDelivery => type == BatchType.delivery;
@@ -400,6 +407,9 @@ class RiderBatch {
         codCollected: _double(j['cod_collected']) ?? 0,
         toRemit: _double(j['to_remit']) ?? 0,
         remitted: (j['remitted'] as bool?) ?? false,
+        cashCount: j['cash_count'] is Map
+            ? PendingCashCount.fromJson(Map<String, dynamic>.from(j['cash_count'] as Map))
+            : null,
         estEarnings: (j['est_earnings'] as num).toDouble(),
         arrivalRadiusM: (j['arrival_radius_m'] as int?) ?? 150,
         arrivalLocked: (j['arrival_locked'] as bool?) ?? false,

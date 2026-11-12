@@ -155,10 +155,10 @@ class _TripScreenState extends State<TripScreen> {
     final stop = _stop;
     Launcher.sms(_phone!,
         body: _toHub
-            ? 'Pickrush rider for batch #${b.batchNo}: heading to the station.'
+            ? 'PickSell rider for batch #${b.batchNo}: heading to the station.'
             : _delivery
-                ? 'Hi! This is your Pickrush rider. I am on my way with your parcel${stop!.parcelCount == 1 ? '' : 's'}${stop.codTotal > 0 ? '. Please prepare ${FormatUtils.peso(stop.codTotal)} (cash on delivery)' : ''}.'
-                : 'Hi! This is your Pickrush rider for batch #${b.batchNo}. I am on my way to collect your parcels.');
+                ? 'Hi! This is your PickSell rider. I am on my way with your parcel${stop!.parcelCount == 1 ? '' : 's'}${stop.codTotal > 0 ? '. Please prepare ${FormatUtils.peso(stop.codTotal)} (cash on delivery)' : ''}.'
+                : 'Hi! This is your PickSell rider for batch #${b.batchNo}. I am on my way to collect your parcels.');
   }
 
   void _toast(String message) {

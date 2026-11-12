@@ -39,6 +39,25 @@ class RiderStation {
       );
 }
 
+/// A logistics company on PickSell that takes riders. A rider works for one only.
+class LogisticsCompany {
+  const LogisticsCompany({required this.id, required this.name, this.isDefault = false});
+  final String id;
+  final String name;
+  final bool isDefault;
+
+  factory LogisticsCompany.fromJson(Map<String, dynamic> j) => LogisticsCompany(
+        id: j['id'].toString(),
+        name: j['name'] as String,
+        isDefault: j['is_default'] == true,
+      );
+
+  @override
+  bool operator ==(Object other) => other is LogisticsCompany && other.id == id;
+  @override
+  int get hashCode => id.hashCode;
+}
+
 /// The signed-in rider as returned by `/api/rider/me`.
 class RiderAccount {
   const RiderAccount({
@@ -58,6 +77,11 @@ class RiderAccount {
   final Map<String, dynamic> raw;
 
   String get fullName => (raw['full_name'] as String?) ?? '';
+
+  /// The logistics company the rider works for (or applied to).
+  LogisticsCompany? get company => raw['company'] is Map
+      ? LogisticsCompany.fromJson(Map<String, dynamic>.from(raw['company'] as Map))
+      : null;
   String get email => (raw['email'] as String?) ?? '';
   DateTime? get appliedAt => DateTime.tryParse(raw['applied_at'] as String? ?? '')?.toLocal();
   DateTime? get approvedAt => DateTime.tryParse(raw['approved_at'] as String? ?? '')?.toLocal();

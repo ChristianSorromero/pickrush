@@ -357,9 +357,11 @@ class _CodCard extends StatelessWidget {
             icon: Icons.receipt_long_outlined,
             label: 'Last remittance${cod.lastAt != null ? ' · ${_date(cod.lastAt!)}' : ''}',
             value: FormatUtils.peso(cod.lastAmount!),
-            trailing: cod.lastStatus == 'disputed'
-                ? const TagChip(label: 'Disputed')
-                : const TagChip.success(label: 'Counted'),
+            trailing: switch (cod.lastStatus) {
+              'disputed' => const TagChip(label: 'Disputed'),
+              'awaiting_rider' => const TagChip.warning(label: 'Confirm at handover'),
+              _ => const TagChip.success(label: 'Counted'),
+            },
           ),
       ],
     );
