@@ -115,23 +115,23 @@ class _DeliverScreenState extends State<DeliverScreen> {
   }
 
   Future<void> _cantDeliver() async {
-    // Every parcel still to deliver here (returns to a seller cannot fail from the app).
-    final targets = _toDeliver.where((i) => !i.isReturn).toList();
-    if (targets.isEmpty) {
-      _toast('A return to the seller cannot be marked failed here. Report a problem to your station.');
-      return;
-    }
+    // Every parcel still to deliver here; a stop is either a buyer's or a seller's (returns).
+    final targets = _toDeliver.toList();
+    if (targets.isEmpty) return;
+    final returns = targets.every((i) => i.isReturn);
     final batch = await showModalBottomSheet<RiderBatch>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg))),
-      builder: (_) => _FailSheet(batchId: widget.batch.id, items: targets, requestKey: _requestKey, takePhoto: _takePhoto),
+      builder: (_) => _FailSheet(batchId: widget.batch.id, items: targets, requestKey: _requestKey, takePhoto: _takePhoto, isReturn: returns),
     );
     if (batch == null || !mounted) return;
     assignmentWatcher.poll();
-    _toast('Failed delivery recorded. Bring the parcel back to the station.');
+    _toast(returns
+        ? 'Return not taken back. Bring the parcel back to the station; it is held for the seller.'
+        : 'Failed delivery recorded. Bring the parcel back to the station.');
     _finish(batch);
   }
 
@@ -188,7 +188,7 @@ class _DeliverScreenState extends State<DeliverScreen> {
                     _Line(
                       label: 'Mode of Payment',
                       value: _scannedItems.every((i) => i.isReturn)
-                          ? 'Return to seller (no cash)'
+                          ? (_codDue > 0 ? 'Return fee (cash from the seller)' : 'Return to seller (no cash)')
                           : _codDue > 0 ? 'Cash on Delivery' : 'Already paid',
                     ),
                     if (_codDue > 0) ...[
@@ -197,7 +197,10 @@ class _DeliverScreenState extends State<DeliverScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(AppSpacing.md),
                         decoration: BoxDecoration(color: AppColors.warningSoft, borderRadius: AppRadius.mdAll),
-                        child: Text('Collect exactly ${FormatUtils.peso(_codDue)} in cash before handing over.',
+                        child: Text(
+                            _scannedItems.every((i) => i.isReturn)
+                                ? 'Collect exactly ${FormatUtils.peso(_codDue)} return fee from the seller before handing the parcel back.'
+                                : 'Collect exactly ${FormatUtils.peso(_codDue)} in cash before handing over.',
                             style: AppTextStyles.bodyStrong.copyWith(color: AppColors.warning)),
                       ),
                     ],
@@ -359,8 +362,11 @@ class _PhotoTile extends StatelessWidget {
 /// "Can't deliver": a reason from the station's list, a note, and a photo of
 /// the place. Applies to every parcel still to deliver at this stop.
 class _FailSheet extends StatefulWidget {
-  const _FailSheet({required this.batchId, required this.items, required this.requestKey, required this.takePhoto});
+  const _FailSheet({required this.batchId, required this.items, required this.requestKey, required this.takePhoto, this.isReturn = false});
   final int batchId;
+
+  /// Returns the seller did not take back: the seller's reasons, and the parcel is held for them.
+  final bool isReturn;
   final List<BatchItem> items;
   final String requestKey;
   final Future<String?> Function() takePhoto;
@@ -381,7 +387,7 @@ class _FailSheetState extends State<_FailSheet> {
   void initState() {
     super.initState();
     riderTasks.options().then((o) {
-      if (mounted) setState(() => _reasons = o.deliveryFailureReasons);
+      if (mounted) setState(() => _reasons = widget.isReturn ? o.returnFailureReasons : o.deliveryFailureReasons);
     }).catchError((Object e) {
       if (mounted) setState(() => _error = e.toString());
     });
@@ -426,9 +432,12 @@ class _FailSheetState extends State<_FailSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Can't deliver", style: AppTextStyles.h2.copyWith(fontSize: 18)),
+              Text(widget.isReturn ? 'Seller did not take it back' : "Can't deliver", style: AppTextStyles.h2.copyWith(fontSize: 18)),
               const SizedBox(height: 2),
-              Text('$n ${n == 1 ? 'parcel' : 'parcels'} will be marked as a failed attempt. Bring ${n == 1 ? 'it' : 'them'} back to the station.',
+              Text(
+                  widget.isReturn
+                      ? '$n ${n == 1 ? 'return' : 'returns'} will be held at the station for the seller. Bring ${n == 1 ? 'it' : 'them'} back to the station.'
+                      : '$n ${n == 1 ? 'parcel' : 'parcels'} will be marked as a failed attempt. Bring ${n == 1 ? 'it' : 'them'} back to the station.',
                   style: AppTextStyles.caption),
               AppSpacing.gapLg,
               if (_reasons == null && _error == null)

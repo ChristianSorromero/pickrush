@@ -111,9 +111,12 @@ class _EarningsScreenState extends State<EarningsScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '${FormatUtils.peso(d.pickupRate)} per pickup · '
-                      '${d.classRates.isEmpty ? '${FormatUtils.peso(d.deliveryRate)} per delivery' : 'delivery ${d.classRates.entries.map((e) => '${FormatUtils.peso(e.value)} ${e.key.toLowerCase()}').join(', ')}'}. '
-                      'Failed attempts don\'t count. Your station handles payouts.',
+                      d.classRules.isNotEmpty
+                          ? 'Pickup and delivery pay the same, by weight: ${_classRules(d.classRules)}. '
+                              'Failed attempts don\'t count. Your station handles payouts.'
+                          : '${FormatUtils.peso(d.pickupRate)} per pickup · '
+                              '${d.classRates.isEmpty ? '${FormatUtils.peso(d.deliveryRate)} per delivery' : 'delivery ${d.classRates.entries.map((e) => '${FormatUtils.peso(e.value)} ${e.key.toLowerCase()}').join(', ')}'}. '
+                              'Failed attempts don\'t count. Your station handles payouts.',
                       style: AppTextStyles.caption,
                     ),
                   ),
@@ -126,6 +129,16 @@ class _EarningsScreenState extends State<EarningsScreen> {
       ),
     );
   }
+}
+
+/// "₱15.00 up to 5 kg, ₱40.00 up to 10 kg, ₱60.00 up to 20 kg, ₱60.00 + ₱4.00/kg above 20 kg".
+String _classRules(List<ClassRule> rules) {
+  String kg(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+  return rules
+      .map((r) => r.perKgPay > 0
+          ? '${FormatUtils.peso(r.pay)} + ${FormatUtils.peso(r.perKgPay)}/kg above ${kg(r.aboveKg)} kg'
+          : '${FormatUtils.peso(r.pay)} up to ${kg(r.upToKg)} kg')
+      .join(', ');
 }
 
 class _PeriodTabs extends StatelessWidget {

@@ -133,10 +133,10 @@ class BatchItem {
   final String? note;
   final DateTime? doneAt;
 
-  /// Marketplace parcels: STANDARD, HEAVY or BULKY (null for direct parcels).
+  /// Marketplace parcels: STANDARD, HEAVY, BULKY or EXTRA_BULKY (null for direct parcels).
   final String? parcelClass;
 
-  /// HEAVY or BULKY: flagged so the rider knows before pickup.
+  /// HEAVY, BULKY or EXTRA_BULKY: flagged so the rider knows before pickup.
   final bool isHeavy;
 
   /// What finishing this task pays (delivery pay follows the parcel class; failed attempts pay nothing).
@@ -435,11 +435,15 @@ class RiderOptions {
     required this.pickupFailureReasons,
     required this.riderProblems,
     this.deliveryFailureReasons = const [],
+    this.returnFailureReasons = const [],
   });
 
   final List<Choice> pickupFailureReasons;
   final List<Choice> riderProblems;
   final List<Choice> deliveryFailureReasons;
+
+  /// Why the seller did not take a return back (empty from older servers).
+  final List<Choice> returnFailureReasons;
 
   factory RiderOptions.fromJson(Map<String, dynamic> j) {
     List<Choice> list(Object? v) => [
@@ -450,6 +454,7 @@ class RiderOptions {
       pickupFailureReasons: list(j['pickup_failure_reasons']),
       riderProblems: list(j['rider_problems']),
       deliveryFailureReasons: list(j['delivery_failure_reasons']),
+      returnFailureReasons: list(j['return_failure_reasons']),
     );
   }
 }

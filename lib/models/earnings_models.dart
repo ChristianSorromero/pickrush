@@ -135,11 +135,32 @@ class CodSummary {
   }
 }
 
+/// What one parcel class pays, pickup or delivery: [pay], plus [perKgPay]
+/// for each started kg above [aboveKg] (EXTRA_BULKY).
+class ClassRule {
+  const ClassRule({required this.code, required this.aboveKg, required this.upToKg, required this.pay, this.perKgPay = 0});
+
+  final String code;
+  final double aboveKg;
+  final double upToKg;
+  final double pay;
+  final double perKgPay;
+
+  factory ClassRule.fromJson(Map<String, dynamic> j) => ClassRule(
+        code: j['code'] as String,
+        aboveKg: _d(j['above_kg']),
+        upToKg: _d(j['up_to_kg']),
+        pay: _d(j['pay']),
+        perKgPay: _d(j['per_kg_pay']),
+      );
+}
+
 class EarningsData {
   const EarningsData({
     required this.pickupRate,
     required this.deliveryRate,
     this.classRates = const {},
+    this.classRules = const [],
     required this.today,
     required this.week,
     required this.month,
@@ -151,8 +172,11 @@ class EarningsData {
   final double pickupRate;
   final double deliveryRate;
 
-  /// Delivery pay by parcel class (STANDARD, HEAVY, BULKY), lightest first.
+  /// Base pay by parcel class (STANDARD, HEAVY, BULKY, EXTRA_BULKY), lightest first.
   final Map<String, double> classRates;
+
+  /// Pickup and delivery pay by weight, lightest first (empty from older servers).
+  final List<ClassRule> classRules;
   final EarningsTotal today;
   final EarningsTotal week;
   final EarningsTotal month;
@@ -171,6 +195,9 @@ class EarningsData {
       classRates: rates['classes'] is Map
           ? {for (final e in m(rates['classes']).entries) e.key: _d(e.value)}
           : const {},
+      classRules: rates['class_rules'] is List
+          ? [for (final r in rates['class_rules'] as List) ClassRule.fromJson(m(r))]
+          : const [],
       today: EarningsTotal.fromJson(m(j['today'])),
       week: EarningsTotal.fromJson(m(j['week'])),
       month: EarningsTotal.fromJson(m(j['month'])),

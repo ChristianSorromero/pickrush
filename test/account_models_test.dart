@@ -31,6 +31,30 @@ void main() {
     expect(e.batches.single.isDelivery, isTrue);
     expect(e.cod.inHand, 650.0);
     expect(e.cod.lastStatus, 'reconciled');
+    expect(e.classRules, isEmpty, reason: 'older servers send no class rules');
+  });
+
+  test('class rules: pickup and delivery pay by weight, with per-kg pay above 20 kg', () {
+    final e = EarningsData.fromJson({
+      'rates': {
+        'pickup': 15, 'delivery': 15, 'classes': {'STANDARD': 15, 'EXTRA_BULKY': 60},
+        'class_rules': [
+          {'code': 'STANDARD', 'above_kg': 0, 'up_to_kg': 5, 'pay': 15, 'per_kg_pay': 0},
+          {'code': 'EXTRA_BULKY', 'above_kg': 20, 'up_to_kg': 50, 'pay': 60, 'per_kg_pay': 4},
+        ],
+      },
+      'today': {'earnings': 0, 'pickups': 0, 'deliveries': 0},
+      'week': {'earnings': 0, 'pickups': 0, 'deliveries': 0},
+      'month': {'earnings': 0, 'pickups': 0, 'deliveries': 0},
+      'days': [],
+      'batches': [],
+      'cod': {'in_hand': 0, 'limit': 5000, 'remitted_this_month': 0},
+    });
+
+    expect(e.classRules.map((r) => r.code), ['STANDARD', 'EXTRA_BULKY']);
+    expect(e.classRules.last.aboveKg, 20.0);
+    expect(e.classRules.last.perKgPay, 4.0);
+    expect(e.classRules.first.perKgPay, 0.0);
   });
 
   test('the account reads station details, masked payout and document expiry', () {
