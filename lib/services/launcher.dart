@@ -1,8 +1,10 @@
+import 'package:rider_app/config.dart';
 import 'package:rider_app/models/batch_models.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Hands off to free apps already on the phone: Google Maps for turn-by-turn,
-/// the dialer and SMS for the seller or the station.
+/// the dialer and SMS for the seller or the station, and the browser for
+/// Picksell's web pages.
 class Launcher {
   Launcher._();
 
@@ -37,6 +39,10 @@ class Launcher {
         path: number,
         queryParameters: body == null ? null : {'body': body},
       ));
+
+  /// A Picksell web page (e.g. '/terms'), in the browser.
+  static Future<bool> openWeb(String path) =>
+      _open(Uri.parse('${AppConfig.baseUrl.replaceAll(RegExp(r'/+$'), '')}$path'));
 
   static Future<bool> _open(Uri uri) async {
     try {

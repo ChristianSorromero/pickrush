@@ -11,6 +11,7 @@ import 'package:rider_app/riderpages/application_status.dart';
 import 'package:rider_app/riderpages/login.dart';
 import 'package:rider_app/riderpages/register/step2_account.dart';
 import 'package:rider_app/services/api_client.dart';
+import 'package:rider_app/services/launcher.dart';
 import 'register_shared.dart';
 
 class ReviewScreen extends StatefulWidget {
@@ -40,9 +41,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
   @override
   void initState() {
     super.initState();
-    // TODO: open Terms of Service / Privacy Policy pages.
-    _termsTap = TapGestureRecognizer()..onTap = () {};
-    _privacyTap = TapGestureRecognizer()..onTap = () {};
+    // The same documents the website and the buyer app show, served by Picksell.
+    _termsTap = TapGestureRecognizer()..onTap = () => Launcher.openWeb('/terms');
+    _privacyTap = TapGestureRecognizer()..onTap = () => Launcher.openWeb('/privacy');
   }
 
   @override
@@ -133,6 +134,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
           MapEntry('email',                    _d.email),
           MapEntry('password',                 _d.password),
           MapEntry('email_verification_token', _d.emailVerificationToken),
+          // The rider ticked "I agree" above; Picksell records the version and time.
+          const MapEntry('terms', '1'),
         ]);
       }
 
