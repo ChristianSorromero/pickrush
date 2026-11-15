@@ -25,6 +25,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   final _licenseNoCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
+  final _orcrExpiryCtrl = TextEditingController();
   String? _error;
 
   RegisterData get _d => widget.data;
@@ -38,12 +39,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (_d.licenseExpiry != null) {
       _expiryCtrl.text = formatExpiryInput(_d.licenseExpiry!);
     }
+    if (_d.orcrExpiry != null) {
+      _orcrExpiryCtrl.text = formatExpiryInput(_d.orcrExpiry!);
+    }
   }
 
   @override
   void dispose() {
     _licenseNoCtrl.dispose();
     _expiryCtrl.dispose();
+    _orcrExpiryCtrl.dispose();
     _plateCtrl.dispose();
     super.dispose();
   }
@@ -130,6 +135,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     _d.licenseNo = _licenseNoCtrl.text.trim();
     _d.licenseExpiry = parseExpiryInput(_expiryCtrl.text);
+    _d.orcrExpiry = parseExpiryInput(_orcrExpiryCtrl.text);
     _d.plateNumber = _plateCtrl.text.trim().toUpperCase();
 
     Navigator.of(context).push(
@@ -285,6 +291,19 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     ],
                   ],
                 ),
+              ),
+            ),
+            AppSpacing.gapLg,
+            RegisterLabeledField(
+              label: 'Registration Expiry (on the OR)',
+              child: TextFormField(
+                controller: _orcrExpiryCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [ExpiryDateFormatter()],
+                validator: validateOrcrExpiry,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                style: AppTextStyles.bodyStrong,
+                decoration: registerInputDecoration('YYYY-MM-DD'),
               ),
             ),
             AppSpacing.gapXl,

@@ -412,9 +412,17 @@ String formatExpiryInput(DateTime d) =>
 
 /// Yesterday and earlier = expired. Today and tomorrow = accepted.
 /// Uses the phone's local time (PH).
-String? validateLicenseExpiry(String? v) {
+String? validateLicenseExpiry(String? v) => validateDocumentExpiry(v,
+    missing: 'Enter your license expiration date', expired: 'Your license is expired. Please use a valid license.');
+
+/// The registration expiry printed on the OR (the vehicle's yearly registration).
+String? validateOrcrExpiry(String? v) => validateDocumentExpiry(v,
+    missing: 'Enter the registration expiry on your OR',
+    expired: 'Your vehicle registration is expired. Renew it first.');
+
+String? validateDocumentExpiry(String? v, {required String missing, required String expired}) {
   final text = v?.trim() ?? '';
-  if (text.isEmpty) return 'Enter your license expiration date';
+  if (text.isEmpty) return missing;
 
   final d = parseExpiryInput(text);
   final now = DateTime.now();
@@ -423,9 +431,7 @@ String? validateLicenseExpiry(String? v) {
   }
 
   final today = DateTime(now.year, now.month, now.day);
-  if (d.isBefore(today)) {
-    return 'Your license is expired. Please use a valid license.';
-  }
+  if (d.isBefore(today)) return expired;
   return null;
 }
 

@@ -5,6 +5,7 @@ import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/format_utils.dart';
 import 'package:rider_app/models/earnings_models.dart';
+import 'package:rider_app/riderpages/wallet_parts.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
@@ -16,8 +17,10 @@ import 'package:rider_app/widgets/tag_chip.dart';
 
 enum _Period { today, week, month }
 
-/// Earnings tab: what finished pickups and deliveries earned (today, this week,
-/// this month, the last 7 days, per batch) and the COD cash still to remit.
+/// Earnings tab: the wallet (what the rider can withdraw, the payslip waiting
+/// for release, this week so far, deductions to dispute), what finished pickups
+/// and deliveries earned (today, this week, this month, the last 7 days, per
+/// batch) and the COD cash still to hand over (all of it).
 class EarningsScreen extends StatefulWidget {
   const EarningsScreen({super.key});
 
@@ -74,11 +77,19 @@ class _EarningsScreenState extends State<EarningsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH, vertical: AppSpacing.lg),
           children: [
             Text('Earnings', style: AppTextStyles.h1),
-            Text('From your finished pickups and deliveries', style: AppTextStyles.body),
+            Text('Your pay goes to your wallet. Hand over all the COD.', style: AppTextStyles.body),
             AppSpacing.gapXl,
             if (d == null)
               _Status(error: _error, onRetry: _load)
             else ...[
+              if (d.wallet != null) ...[
+                WalletCard(wallet: d.wallet!, onChanged: _load),
+                if (d.wallet!.deductions.isNotEmpty) ...[
+                  AppSpacing.gapXl,
+                  DeductionsCard(deductions: d.wallet!.deductions, onChanged: _load),
+                ],
+                AppSpacing.gapXl,
+              ],
               _PeriodTabs(value: _period, onChanged: (p) => setState(() => _period = p)),
               AppSpacing.gapLg,
               _Total(period: _period, total: switch (_period) {
@@ -91,6 +102,10 @@ class _EarningsScreenState extends State<EarningsScreen> {
               AppSpacing.gapXl,
               _CodCard(cod: d.cod),
               AppSpacing.gapXl,
+              if (d.wallet?.withdrawals.isNotEmpty ?? false) ...[
+                WithdrawalsCard(withdrawals: d.wallet!.withdrawals),
+                AppSpacing.gapXl,
+              ],
               SectionCard(
                 title: 'Finished batches',
                 children: d.batches.isEmpty
@@ -113,10 +128,10 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     child: Text(
                       d.classRules.isNotEmpty
                           ? 'Pickup and delivery pay the same, by weight: ${_classRules(d.classRules)}. '
-                              'Failed attempts don\'t count. Your station handles payouts.'
+                              'Failed attempts don\'t count. Payslips close Sunday night and are released by Tuesday.'
                           : '${FormatUtils.peso(d.pickupRate)} per pickup · '
                               '${d.classRates.isEmpty ? '${FormatUtils.peso(d.deliveryRate)} per delivery' : 'delivery ${d.classRates.entries.map((e) => '${FormatUtils.peso(e.value)} ${e.key.toLowerCase()}').join(', ')}'}. '
-                              'Failed attempts don\'t count. Your station handles payouts.',
+                              'Failed attempts don\'t count. Payslips close Sunday night and are released by Tuesday.',
                       style: AppTextStyles.caption,
                     ),
                   ),

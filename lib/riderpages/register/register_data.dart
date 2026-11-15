@@ -31,7 +31,8 @@ class RegisterData {
       ..vehicleType = VehicleType.fromApi(r['vehicle_type'] as String?)
       ..plateNumber = (r['plate_number'] as String?) ?? ''
       ..licenseNo = (r['license_no'] as String?) ?? ''
-      ..licenseExpiry = DateTime.tryParse(r['license_expiry'] as String? ?? '');
+      ..licenseExpiry = DateTime.tryParse(r['license_expiry'] as String? ?? '')
+      ..orcrExpiry = DateTime.tryParse(r['orcr_expiry'] as String? ?? '');
   }
 
   /// True when a rejected rider is resubmitting (signed in, no email step).
@@ -64,6 +65,9 @@ class RegisterData {
   String? licenseFrontPath;
   String? licenseBackPath;
   List<String> registrationPaths = [];
+
+  /// The vehicle registration's expiry, printed on the OR.
+  DateTime? orcrExpiry;
 }
 
 // ── Logistics company ─────────────────────────────────────────────────────────
@@ -152,7 +156,8 @@ final HubService hubService = HttpHubService();
 
 enum VehicleType {
   motorcycle('Motorcycle', 0xe5af),
-  tricycle('Tricycle', 0xe556);
+  tricycle('Tricycle', 0xe556),
+  fourWheel('4 Wheel', 0xf6b3);
 
   const VehicleType(this.label, this.iconCodePoint);
   final String label;
@@ -161,11 +166,13 @@ enum VehicleType {
   String get apiValue => switch (this) {
         VehicleType.motorcycle => 'motorcycle',
         VehicleType.tricycle   => 'tricycle',
+        VehicleType.fourWheel  => 'four_wheel',
       };
 
   static VehicleType? fromApi(String? value) => switch (value) {
         'motorcycle' => VehicleType.motorcycle,
         'tricycle' => VehicleType.tricycle,
+        'four_wheel' => VehicleType.fourWheel,
         _ => null,
       };
 }

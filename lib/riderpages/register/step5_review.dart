@@ -124,6 +124,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         MapEntry('plate_number',             _d.plateNumber),
         MapEntry('license_no',               _d.licenseNo),
         MapEntry('license_expiry',           _d.licenseExpiry!.toIso8601String().substring(0, 10)),
+        MapEntry('orcr_expiry',              _d.orcrExpiry!.toIso8601String().substring(0, 10)),
       ]);
 
       // A first application proves the email; a resubmission is signed in.
@@ -307,6 +308,11 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   _d.licenseExpiry == null
                       ? '—'
                       : formatRegisterDate(_d.licenseExpiry!)),
+              _InfoRow(
+                  'Registration Expiry',
+                  _d.orcrExpiry == null
+                      ? '—'
+                      : formatRegisterDate(_d.orcrExpiry!)),
               _DocRow(
                 icon: Icons.badge_outlined,
                 title: "Driver's License",

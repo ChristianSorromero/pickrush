@@ -98,6 +98,19 @@ class RiderAccount {
   String? get plateNumber => raw['plate_number'] as String?;
   String? get licenseNo => raw['license_no'] as String?;
   DateTime? get licenseExpiry => DateTime.tryParse(raw['license_expiry'] as String? ?? '');
+  DateTime? get orcrExpiry => DateTime.tryParse(raw['orcr_expiry'] as String? ?? '');
+
+  /// The license or OR/CR that expired, e.g. "Driver's license": no new tasks
+  /// until the station approves a renewed one.
+  String? get blockedByDocument => raw['blocked_by_document'] as String?;
+
+  /// The newest renewal sent for each document (waiting, approved or not accepted).
+  List<DocumentUpdateInfo> get documentUpdates => [
+        for (final u in (raw['document_updates'] as List? ?? const []))
+          DocumentUpdateInfo.fromJson(Map<String, dynamic>.from(u as Map)),
+      ];
+
+  DocumentUpdateInfo? updateFor(String type) => documentUpdates.where((u) => u.type == type).firstOrNull;
 
   /// Street, barangay, city, province as the rider applied with them.
   String get fullAddress => [
@@ -129,9 +142,11 @@ class RiderAccount {
   List<RiderDocumentInfo> get documents => [
         for (final d in (raw['documents'] as List? ?? const []))
           RiderDocumentInfo(
-            label: (d as Map)['label'] as String,
+            type: (d as Map)['type'] as String? ?? '',
+            label: d['label'] as String,
             side: d['side'] as String?,
             expiry: DateTime.tryParse(d['expiry'] as String? ?? ''),
+            expiryEstimated: d['expiry_estimated'] == true,
           ),
       ];
 
@@ -152,12 +167,18 @@ class RiderAccount {
       );
 }
 
-/// A document the rider applied with (license front/back, OR/CR).
+/// A document in force (license front/back, OR/CR).
 class RiderDocumentInfo {
-  const RiderDocumentInfo({required this.label, this.side, this.expiry});
+  const RiderDocumentInfo({this.type = '', required this.label, this.side, this.expiry, this.expiryEstimated = false});
+
+  /// drivers_license or or_cr.
+  final String type;
   final String label;
   final String? side;
   final DateTime? expiry;
+
+  /// The system set the date (OR/CRs from before expiries were asked for).
+  final bool expiryEstimated;
 
   String get title => side == null ? label : '$label (${side![0].toUpperCase()}${side!.substring(1)})';
 
@@ -169,6 +190,32 @@ class RiderDocumentInfo {
         .difference(DateTime(now.year, now.month, now.day))
         .inDays;
   }
+}
+
+/// A renewed license or OR/CR the rider sent; the station approves it.
+class DocumentUpdateInfo {
+  const DocumentUpdateInfo({required this.type, required this.label, required this.status, this.reason, this.expiry, this.sentAt});
+
+  final String type;
+  final String label;
+
+  /// pending, approved or rejected.
+  final String status;
+  final String? reason;
+  final DateTime? expiry;
+  final DateTime? sentAt;
+
+  bool get isPending => status == 'pending';
+  bool get isRejected => status == 'rejected';
+
+  factory DocumentUpdateInfo.fromJson(Map<String, dynamic> j) => DocumentUpdateInfo(
+        type: j['type'] as String,
+        label: j['label'] as String,
+        status: j['status'] as String,
+        reason: j['reason'] as String?,
+        expiry: DateTime.tryParse(j['expiry'] as String? ?? ''),
+        sentAt: DateTime.tryParse(j['sent_at'] as String? ?? '')?.toLocal(),
+      );
 }
 
 class AuthException implements Exception {
@@ -233,6 +280,47 @@ class AuthService {
         throw AuthException('Please log in again.', signedOut: true);
       }
       throw AuthException(apiErrorMessage(e));
+    }
+  }
+
+  /// Send a renewed driver's license ([front], [back], [licenseNo]) or OR/CR
+  /// ([files], 1 to 5) with its [expiry]. Returns the server's message; the
+  /// account comes back with the renewal waiting for the station.
+  Future<(String, RiderAccount)> renewDocument({
+    required String type,
+    required DateTime expiry,
+    String? licenseNo,
+    String? front,
+    String? back,
+    List<String> files = const [],
+    void Function(double)? onProgress,
+  }) async {
+    try {
+      final day = '${expiry.year}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}';
+      final form = FormData()..fields.add(MapEntry('expiry_date', day));
+      if (type == 'drivers_license') {
+        form.fields.add(MapEntry('license_no', licenseNo!));
+        form.files.add(MapEntry('front', await MultipartFile.fromFile(front!, filename: 'license_front.jpg')));
+        form.files.add(MapEntry('back', await MultipartFile.fromFile(back!, filename: 'license_back.jpg')));
+      } else {
+        for (var i = 0; i < files.length; i++) {
+          final name = files[i].split(RegExp(r'[\\/]')).last;
+          form.files.add(MapEntry('files[$i]', await MultipartFile.fromFile(files[i], filename: name)));
+        }
+      }
+      // Photos over mobile data can take longer than the client's default timeout.
+      final res = await apiClient.post('/api/rider/documents/$type',
+          data: form,
+          options: Options(sendTimeout: const Duration(minutes: 5), receiveTimeout: const Duration(minutes: 2)),
+          onSendProgress: (sent, total) {
+        if (total > 0) onProgress?.call(sent / total);
+      });
+      return (
+        res.data['message'] as String,
+        RiderAccount.fromJson(Map<String, dynamic>.from(res.data['rider'] as Map)),
+      );
+    } on DioException catch (e) {
+      throw AuthException(apiErrorMessage(e), signedOut: e.response?.statusCode == 401);
     }
   }
 

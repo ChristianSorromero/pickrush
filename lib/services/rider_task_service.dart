@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:rider_app/models/dashboard_models.dart';
 import 'package:rider_app/models/earnings_models.dart';
+import 'package:rider_app/models/wallet_models.dart';
 import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/services/api_client.dart';
 import 'package:rider_app/services/location_service.dart';
@@ -197,6 +198,29 @@ class RiderTaskService {
   Future<EarningsData> earnings() => _call(() async =>
       EarningsData.fromJson(_map((await apiClient.get('/api/rider/earnings')).data)));
 
+  /// The rider's weekly payslips, newest first.
+  Future<List<Payslip>> payslips() => _call(() async => [
+        for (final p in _map((await apiClient.get('/api/rider/payslips')).data)['payslips'] as List)
+          Payslip.fromJson(_map(p)),
+      ]);
+
+  /// One payslip with its earnings and deductions.
+  Future<Payslip> payslip(int id) => _call(() async =>
+      Payslip.fromJson(_map(_map((await apiClient.get('/api/rider/payslips/$id')).data)['payslip'])));
+
+  /// Withdraw from the wallet to the payout account on file (simulated).
+  /// Returns the server's message and the wallet after it.
+  Future<(String, WalletSummary)> withdraw(double amount) => _call(() async {
+        final data = _map((await apiClient.post('/api/rider/withdrawals', data: {'amount': amount})).data);
+        return (data['message'] as String, WalletSummary.fromJson(_map(data['wallet'])));
+      });
+
+  /// Dispute a deduction; it stays off the payslip until the station decides.
+  Future<(String, WalletSummary)> disputeDeduction(int id, String reason) => _call(() async {
+        final data = _map((await apiClient.post('/api/rider/deductions/$id/dispute', data: {'reason': reason})).data);
+        return (data['message'] as String, WalletSummary.fromJson(_map(data['wallet'])));
+      });
+
   /// Agree with the station's count of the cash handed over. Returns the
   /// server's message for the rider.
   Future<String> confirmCashCount(int id) => _call(() async =>
@@ -207,12 +231,23 @@ class RiderTaskService {
       _map((await apiClient.post('/api/rider/cash-counts/$id/reject', data: {'reason': reason})).data)['message']
           as String);
 
-  /// The activity history, newest first: [kind] is pickup or delivery; [before]
-  /// is the `next` cursor of the previous page.
-  Future<ActivityPage> activity(String kind, {String? before}) => _call(() async =>
-      ActivityPage.fromJson(_map((await apiClient.get('/api/rider/activity',
-              queryParameters: {'kind': kind, if (before != null) 'before': before}))
-          .data)));
+  /// The activity history, newest first: [kind] is all, pickup or delivery;
+  /// [type] keeps one kind of line (delivered, failed, ...); [from] and [to]
+  /// are whole days, both included. [before] is the `next` cursor of the
+  /// previous page.
+  Future<ActivityPage> activity(String kind, {String? type, DateTime? from, DateTime? to, String? before}) =>
+      _call(() async => ActivityPage.fromJson(_map((await apiClient.get('/api/rider/activity', queryParameters: {
+            'kind': kind,
+            if (type != null) 'type': type,
+            if (from != null) 'from': apiDate(from),
+            if (to != null) 'to': apiDate(to),
+            if (before != null) 'before': before,
+          }))
+              .data)));
+
+  /// 2026-11-05: a day as the API takes it.
+  static String apiDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<List<RiderNotification>> notifications() => _call(() async {
         final res = await apiClient.get('/api/rider/notifications');

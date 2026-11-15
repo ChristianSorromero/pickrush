@@ -4,7 +4,9 @@ import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/format_utils.dart';
+import 'package:rider_app/riderpages/document_update_screen.dart';
 import 'package:rider_app/riderpages/login.dart';
+import 'package:rider_app/riderpages/register/register_data.dart' show VehicleType;
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/auth_service.dart';
 import 'package:rider_app/services/launcher.dart';
@@ -177,36 +179,70 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  /// A warning when the license expires within 30 days (or already has).
+  /// A warning for each license or OR/CR that expires within 30 days or
+  /// already has: an expired one means no new tasks until a renewal is approved.
   List<Widget> _expiryBanner(RiderAccount a) {
-    final days = _daysLeft(a.licenseExpiry);
-    if (days == null || days > 30) return const [];
-    final expired = days < 0;
-    return [
-      AppSpacing.gapLg,
-      Container(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: expired ? AppColors.primarySoft : AppColors.warningSoft,
-          borderRadius: AppRadius.lgAll,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.warning_amber_rounded, color: expired ? AppColors.primaryDark : AppColors.warning),
-            AppSpacing.gapMd,
-            Expanded(
-              child: Text(
-                expired
-                    ? 'Your driver\'s license has expired. Renew it and send the new one to your station to keep riding.'
-                    : 'Your driver\'s license expires in $days ${days == 1 ? 'day' : 'days'}. Renew it and send the new one to your station.',
-                style: AppTextStyles.bodyStrong.copyWith(color: expired ? AppColors.primaryDark : AppColors.warning),
+    final banners = <Widget>[];
+    for (final (type, name, expiry) in [
+      ('drivers_license', "driver's license", a.licenseExpiry),
+      ('or_cr', 'OR/CR', a.orcrExpiry),
+    ]) {
+      final days = _daysLeft(expiry);
+      if (days == null || days > 30) continue;
+      final expired = days < 0;
+      final waiting = a.updateFor(type)?.isPending ?? false;
+      final text = switch ((expired, waiting)) {
+        (true, true) => 'Your $name has expired. You get no new tasks until your station approves the new one you sent.',
+        (true, false) => 'Your $name has expired. You get no new tasks until you send a renewed one and your station approves it.',
+        (false, true) => 'Your $name expires ${_inDays(days)}. Your station is reviewing the new one you sent.',
+        (false, false) => 'Your $name expires ${_inDays(days)}. Renew it and send the new one so you can keep riding.',
+      };
+      banners.addAll([
+        AppSpacing.gapLg,
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: expired ? AppColors.primarySoft : AppColors.warningSoft,
+            borderRadius: AppRadius.lgAll,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: expired ? AppColors.primaryDark : AppColors.warning),
+                  AppSpacing.gapMd,
+                  Expanded(
+                    child: Text(text,
+                        style: AppTextStyles.bodyStrong.copyWith(color: expired ? AppColors.primaryDark : AppColors.warning)),
+                  ),
+                ],
               ),
-            ),
-          ],
+              if (!waiting)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => _renew(a, type),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
+                    child: Text(type == 'or_cr' ? 'Renew OR/CR' : 'Renew license'),
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
-    ];
+      ]);
+    }
+    return banners;
+  }
+
+  static String _inDays(int days) => days == 0 ? 'today' : 'in $days ${days == 1 ? 'day' : 'days'}';
+
+  Future<void> _renew(RiderAccount a, String type) async {
+    final updated = await Navigator.of(context).push<RiderAccount>(
+      MaterialPageRoute(builder: (_) => DocumentUpdateScreen(type: type, licenseNo: a.licenseNo)),
+    );
+    if (updated != null && mounted) setState(() => _account = updated);
   }
 
   Widget _work(RiderAccount a) => SectionCard(
@@ -233,9 +269,13 @@ class _AccountScreenState extends State<AccountScreen> {
       title: 'Vehicle & license',
       children: [
         InfoRow(
-          icon: a.vehicleType == 'tricycle' ? Icons.electric_rickshaw_outlined : Icons.two_wheeler_rounded,
+          icon: switch (a.vehicleType) {
+            'tricycle' => Icons.electric_rickshaw_outlined,
+            'four_wheel' => Icons.directions_car_outlined,
+            _ => Icons.two_wheeler_rounded,
+          },
           label: 'Vehicle',
-          value: _title(a.vehicleType ?? '—'),
+          value: VehicleType.fromApi(a.vehicleType)?.label ?? _title(a.vehicleType ?? '—'),
         ),
         InfoRow(icon: Icons.pin_outlined, label: 'Plate number', value: a.plateNumber ?? '—'),
         InfoRow(icon: Icons.badge_outlined, label: 'License number', value: a.licenseNo ?? '—'),
@@ -246,28 +286,72 @@ class _AccountScreenState extends State<AccountScreen> {
             value: _longDate(a.licenseExpiry!),
             trailing: _expiryChip(days),
           ),
+        if (a.orcrExpiry != null)
+          InfoRow(
+            icon: Icons.event_outlined,
+            label: 'Registration (OR/CR) expiry',
+            value: _longDate(a.orcrExpiry!),
+            trailing: _expiryChip(_daysLeft(a.orcrExpiry)),
+          ),
       ],
     );
   }
 
+  /// One row per document (the license's two sides together), with a Renew
+  /// button and where a renewal the rider sent stands.
   Widget _documents(RiderAccount a) {
     final docs = a.documents;
+    if (docs.isEmpty) {
+      return const SectionCard(
+        title: 'Documents',
+        children: [
+          InfoRow(icon: Icons.description_outlined, label: 'No documents on file', value: 'Your station keeps your documents'),
+        ],
+      );
+    }
+    final types = {for (final d in docs) d.type};
     return SectionCard(
       title: 'Documents',
-      children: docs.isEmpty
-          ? [
-              const InfoRow(icon: Icons.description_outlined, label: 'No documents on file', value: 'Your station keeps your documents'),
-            ]
-          : [
-              for (final d in docs)
-                InfoRow(
-                  icon: Icons.description_outlined,
-                  label: d.title,
-                  value: d.expiry == null ? 'On file' : 'Valid until ${_longDate(d.expiry!)}',
-                  trailing: d.expiry == null ? const TagChip.success(label: 'On file') : _expiryChip(d.daysLeft()),
-                ),
-            ],
+      children: [
+        for (final type in types) ...[
+          () {
+            final d = docs.firstWhere((d) => d.type == type);
+            return InfoRow(
+              icon: type == 'or_cr' ? Icons.description_outlined : Icons.badge_outlined,
+              label: d.label,
+              value: d.expiry == null ? 'On file' : 'Valid until ${_longDate(d.expiry!)}',
+              trailing: d.expiry == null ? const TagChip.success(label: 'On file') : _expiryChip(d.daysLeft()),
+            );
+          }(),
+          ..._updateStatus(a.updateFor(type)),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _renew(a, type),
+              icon: const Icon(Icons.upload_file_rounded, size: 18),
+              label: Text(a.updateFor(type)?.isPending ?? false ? 'Send again' : 'Renew'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
+            ),
+          ),
+        ],
+      ],
     );
+  }
+
+  /// "Waiting for your station" or "Not accepted: reason" for a renewal.
+  List<Widget> _updateStatus(DocumentUpdateInfo? u) {
+    if (u == null || !(u.isPending || u.isRejected)) return const [];
+    return [
+      Padding(
+        padding: const EdgeInsets.only(left: 36, bottom: AppSpacing.xs),
+        child: Text(
+          u.isPending
+              ? 'New one sent${u.sentAt == null ? '' : ' ${_longDate(u.sentAt!)}'}: waiting for your station to approve it.'
+              : 'Your new one was not accepted: ${u.reason ?? 'ask your station why'}',
+          style: AppTextStyles.caption.copyWith(color: u.isPending ? AppColors.warning : AppColors.primaryDark),
+        ),
+      ),
+    ];
   }
 
   Widget _payout(RiderAccount a) {

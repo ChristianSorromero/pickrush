@@ -250,6 +250,8 @@ class _VehicleTypeGrid extends StatelessWidget {
         card(VehicleType.motorcycle),
         AppSpacing.gapLg,
         card(VehicleType.tricycle),
+        AppSpacing.gapLg,
+        card(VehicleType.fourWheel),
       ],
     );
   }
@@ -269,6 +271,7 @@ class _VehicleTypeCard extends StatelessWidget {
   static const _icons = {
     VehicleType.motorcycle: Icons.two_wheeler_rounded,
     VehicleType.tricycle: Icons.electric_rickshaw_rounded,
+    VehicleType.fourWheel: Icons.directions_car_rounded,
   };
 
   @override

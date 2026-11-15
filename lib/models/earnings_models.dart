@@ -1,6 +1,9 @@
 /// The Earnings page, from `/api/rider/earnings`. A pickup or delivery earns
-/// once it is done; failed attempts earn nothing.
+/// once it is done; failed attempts earn nothing. The pay goes to the wallet
+/// ([WalletSummary]); riders hand over all the COD.
 library;
+
+import 'package:rider_app/models/wallet_models.dart';
 
 double _d(Object? v) => (v as num?)?.toDouble() ?? 0;
 
@@ -167,6 +170,7 @@ class EarningsData {
     required this.days,
     required this.batches,
     required this.cod,
+    this.wallet,
   });
 
   final double pickupRate;
@@ -186,6 +190,9 @@ class EarningsData {
   final List<FinishedBatch> batches;
   final CodSummary cod;
 
+  /// Null from servers before the wallet.
+  final WalletSummary? wallet;
+
   factory EarningsData.fromJson(Map<String, dynamic> j) {
     Map<String, dynamic> m(Object? v) => Map<String, dynamic>.from(v as Map);
     final rates = m(j['rates']);
@@ -204,6 +211,7 @@ class EarningsData {
       days: [for (final d in j['days'] as List) EarningsDay.fromJson(m(d))],
       batches: [for (final b in j['batches'] as List) FinishedBatch.fromJson(m(b))],
       cod: CodSummary.fromJson(m(j['cod'])),
+      wallet: j['wallet'] is Map ? WalletSummary.fromJson(m(j['wallet'])) : null,
     );
   }
 }
