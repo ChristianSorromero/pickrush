@@ -7,8 +7,11 @@ import 'package:rider_app/services/api_client.dart';
 import 'package:rider_app/services/location_service.dart';
 
 class TaskException implements Exception {
-  TaskException(this.message, {this.signedOut = false});
+  TaskException(this.message, {this.signedOut = false, this.offline = false});
   final String message;
+
+  /// The server could not be reached at all (no response): nothing was saved.
+  final bool offline;
 
   /// The token is no longer valid (401) or the account is no longer active (403).
   final bool signedOut;
@@ -198,6 +201,14 @@ class RiderTaskService {
   Future<EarningsData> earnings() => _call(() async =>
       EarningsData.fromJson(_map((await apiClient.get('/api/rider/earnings')).data)));
 
+  /// Earnings between two days (both included).
+  Future<EarningsRange> earningsRange(DateTime from, DateTime to) => _call(() async {
+        String day(DateTime d) =>
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        final res = await apiClient.get('/api/rider/earnings/range', queryParameters: {'from': day(from), 'to': day(to)});
+        return EarningsRange.fromJson(_map(res.data));
+      });
+
   /// The rider's weekly payslips, newest first.
   Future<List<Payslip>> payslips() => _call(() async => [
         for (final p in _map((await apiClient.get('/api/rider/payslips')).data)['payslips'] as List)
@@ -281,7 +292,7 @@ class RiderTaskService {
     } on DioException catch (e) {
       final code = e.response?.statusCode;
       throw TaskException(apiErrorMessage(e),
-          signedOut: code == 401 || code == 403);
+          signedOut: code == 401 || code == 403, offline: e.response == null);
     }
   }
 }

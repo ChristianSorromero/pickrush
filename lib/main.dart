@@ -8,6 +8,10 @@ import 'package:rider_app/services/auth_service.dart';
 
 void main() => runApp(const RiderApp());
 
+/// Lets screens hear when a pushed page closes (e.g. the shell refreshes the
+/// active-task bar after the rider works a batch).
+final RouteObserver<ModalRoute<void>> appRouteObserver = RouteObserver<ModalRoute<void>>();
+
 class RiderApp extends StatelessWidget {
   const RiderApp({super.key});
 
@@ -17,6 +21,7 @@ class RiderApp extends StatelessWidget {
       title: 'Pickrush Rider',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      navigatorObservers: [appRouteObserver],
       home: const StartupScreen(),
     );
   }

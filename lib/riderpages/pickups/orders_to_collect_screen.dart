@@ -77,10 +77,10 @@ class OrdersToCollectScreen extends StatelessWidget {
                 onPressed: onAction,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.onPrimary,
                   elevation: 0,
                   minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+                  shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                 ),
                 child: Text(actionLabel!),
               ),

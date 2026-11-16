@@ -8,19 +8,19 @@ import 'package:rider_app/models/earnings_models.dart';
 import 'package:rider_app/riderpages/wallet_parts.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
-import 'package:rider_app/widgets/app_button.dart';
+import 'package:rider_app/widgets/tab_header.dart';
 import 'package:rider_app/widgets/icon_tile.dart';
 import 'package:rider_app/widgets/section_card.dart';
 import 'package:rider_app/widgets/stats_row.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
-
-enum _Period { today, week, month }
+import 'package:rider_app/widgets/app_feedback.dart';
+import 'package:rider_app/riderpages/activity_screen.dart' show ActivityDates;
+import 'package:rider_app/widgets/motion.dart';
 
 /// Earnings tab: the wallet (what the rider can withdraw, the payslip waiting
 /// for release, this week so far, deductions to dispute), what finished pickups
-/// and deliveries earned (today, this week, this month, the last 7 days, per
-/// batch) and the COD cash still to hand over (all of it).
+/// and deliveries earned (over a date range the rider picks, per batch) and the COD cash still to hand over (all of it).
 class EarningsScreen extends StatefulWidget {
   const EarningsScreen({super.key});
 
@@ -31,7 +31,12 @@ class EarningsScreen extends StatefulWidget {
 class _EarningsScreenState extends State<EarningsScreen> {
   EarningsData? _data;
   String? _error;
-  _Period _period = _Period.week;
+  ActivityDates _range = _earningsPresets()[1]; // this week
+  EarningsRange? _rangeData;
+  String? _rangeError;
+
+  /// Bumped per range request, so an answer for an older range is dropped.
+  int _rangeRequest = 0;
   int _seenChanges = -1;
 
   @override
@@ -51,8 +56,30 @@ class _EarningsScreenState extends State<EarningsScreen> {
     if (assignmentWatcher.changes != _seenChanges) _load();
   }
 
+  Future<void> _loadRange() async {
+    final request = ++_rangeRequest;
+    if (_rangeError != null) setState(() => _rangeError = null);
+    try {
+      final data = await riderTasks.earningsRange(_range.from, _range.to);
+      if (mounted && request == _rangeRequest) setState(() => _rangeData = data);
+    } on TaskException catch (e) {
+      if (mounted && request == _rangeRequest) setState(() => _rangeError = e.message);
+    }
+  }
+
+  Future<void> _pickRange() async {
+    final picked = await _showRangeSheet(context, _range);
+    if (picked == null || !mounted) return;
+    setState(() {
+      _range = picked;
+      _rangeData = null;
+    });
+    _loadRange();
+  }
+
   Future<void> _load() async {
     _seenChanges = assignmentWatcher.changes;
+    _loadRange();
     try {
       final data = await riderTasks.earnings();
       if (mounted) {
@@ -76,8 +103,11 @@ class _EarningsScreenState extends State<EarningsScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH, vertical: AppSpacing.lg),
           children: [
-            Text('Earnings', style: AppTextStyles.h1),
-            Text('Your pay goes to your wallet. Hand over all the COD.', style: AppTextStyles.body),
+            TabHeader(
+              title: 'Wallet',
+              subtitle: 'Your pay goes to your wallet. Hand over all the COD.',
+              onNotificationsClosed: _load,
+            ),
             AppSpacing.gapXl,
             if (d == null)
               _Status(error: _error, onRetry: _load)
@@ -90,15 +120,26 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 ],
                 AppSpacing.gapXl,
               ],
-              _PeriodTabs(value: _period, onChanged: (p) => setState(() => _period = p)),
+              _RangeButton(range: _range, onTap: _pickRange),
               AppSpacing.gapLg,
-              _Total(period: _period, total: switch (_period) {
-                _Period.today => d.today,
-                _Period.week => d.week,
-                _Period.month => d.month,
-              }),
-              AppSpacing.gapLg,
-              _WeekChart(days: d.days),
+              if (_rangeData != null) ...[
+                _Total(range: _range, total: _rangeData!.total),
+                if (_rangeData!.days.length > 1) ...[
+                  AppSpacing.gapLg,
+                  _RangeChart(key: ValueKey(_rangeData), days: _rangeData!.days),
+                ],
+              ] else if (_rangeError != null)
+                StateView.error(message: _rangeError!, onRetry: _loadRange)
+              else
+                const SkeletonGroup(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Skeleton(width: 140, height: 12),
+                    SizedBox(height: 8),
+                    Skeleton(width: 180, height: 34),
+                    SizedBox(height: 16),
+                    Skeleton(height: 84, radius: AppRadius.lg),
+                  ]),
+                ),
               AppSpacing.gapXl,
               _CodCard(cod: d.cod),
               AppSpacing.gapXl,
@@ -117,7 +158,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                           ),
                         ),
                       ]
-                    : [for (final b in d.batches) _BatchRow(batch: b)],
+                    : [_FinishedBatches(batches: d.batches)],
               ),
               AppSpacing.gapMd,
               Row(
@@ -156,68 +197,146 @@ String _classRules(List<ClassRule> rules) {
       .join(', ');
 }
 
-class _PeriodTabs extends StatelessWidget {
-  const _PeriodTabs({required this.value, required this.onChanged});
-  final _Period value;
-  final ValueChanged<_Period> onChanged;
+/// The quick picks in the range sheet: today, this week (from Monday), the
+/// last 7 days, this month and last month.
+List<ActivityDates> _earningsPresets([DateTime? now]) {
+  final n = now ?? DateTime.now();
+  final today = DateTime(n.year, n.month, n.day);
+  final monday = today.subtract(Duration(days: today.weekday - 1));
+  final lastMonthEnd = DateTime(today.year, today.month, 0);
+  return [
+    ActivityDates('Today', today, today),
+    ActivityDates('This week', monday, today),
+    ActivityDates('Last 7 days', today.subtract(const Duration(days: 6)), today),
+    ActivityDates('This month', DateTime(today.year, today.month), today),
+    ActivityDates('Last month', DateTime(lastMonthEnd.year, lastMonthEnd.month), lastMonthEnd),
+  ];
+}
 
-  static const _labels = {_Period.today: 'Today', _Period.week: 'This week', _Period.month: 'This month'};
+/// Quick picks plus "Custom range…" (calendar, up to a year back, not past today).
+Future<ActivityDates?> _showRangeSheet(BuildContext context, ActivityDates current) async {
+  const custom = 'custom';
+  final presets = _earningsPresets();
+  final choice = await showModalBottomSheet<Object>(
+    context: context,
+    showDragHandle: true,
+    // Taller than the default half-screen sheet: size to the list, and scroll
+    // on short phones or with large text.
+    isScrollControlled: true,
+    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+    builder: (context) => SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.screenH, 0, AppSpacing.screenH, AppSpacing.sm),
+            child: Text('Show earnings for', style: AppTextStyles.h2.copyWith(fontSize: 18)),
+          ),
+          for (final p in presets)
+            ListTile(
+              leading: Icon(
+                p.label == current.label ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+                color: p.label == current.label ? AppColors.primaryDark : AppColors.textMuted,
+              ),
+              title: Text(p.label, style: AppTextStyles.bodyStrong),
+              subtitle: Text(_datesLabel(p.from, p.to), style: AppTextStyles.caption),
+              onTap: () => Navigator.pop(context, p),
+            ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.date_range_rounded, color: AppColors.textPrimary),
+            title: Text('Custom range…', style: AppTextStyles.bodyStrong),
+            subtitle: Text('Pick a start and an end day', style: AppTextStyles.caption),
+            onTap: () => Navigator.pop(context, custom),
+          ),
+          AppSpacing.gapSm,
+        ],
+      ),
+      ),
+    ),
+  );
+  if (choice is ActivityDates) return choice;
+  if (choice != custom || !context.mounted) return null;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final range = await showDateRangePicker(
+    context: context,
+    firstDate: today.subtract(const Duration(days: 365)),
+    lastDate: today,
+    initialDateRange: DateTimeRange(start: current.from, end: current.to),
+    helpText: 'Earnings from – to',
+    saveText: 'Show',
+  );
+  return range == null ? null : ActivityDates.custom(range);
+}
+
+/// "Nov 10 – Nov 16", or "Nov 16" for one day.
+String _datesLabel(DateTime from, DateTime to) => ActivityDates.custom(DateTimeRange(start: from, end: to)).label;
+
+/// The range in use; tap to change it.
+class _RangeButton extends StatelessWidget {
+  const _RangeButton({required this.range, required this.onTap});
+  final ActivityDates range;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppRadius.pillAll,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          for (final p in _Period.values)
-            Expanded(
-              child: GestureDetector(
-                onTap: () => onChanged(p),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: p == value ? AppColors.primary : Colors.transparent,
-                    borderRadius: AppRadius.pillAll,
+    final dates = _datesLabel(range.from, range.to);
+    final isPreset = range.label != dates;
+    return Semantics(
+      button: true,
+      label: 'Date range: ${range.label}${isPreset ? ', $dates' : ''}. Tap to change',
+      excludeSemantics: true,
+      child: Pressable(
+        scale: 0.98,
+        child: Material(
+          color: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.button, side: const BorderSide(color: AppColors.border)),
+          child: InkWell(
+            borderRadius: AppRadius.button,
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_month_rounded, size: 22, color: AppColors.primaryDark),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(range.label, style: AppTextStyles.bodyStrong),
+                        if (isPreset) Text(dates, style: AppTextStyles.caption),
+                      ],
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    _labels[p]!,
-                    style: AppTextStyles.label.copyWith(
-                        color: p == value ? Colors.white : AppColors.textSecondary),
-                  ),
-                ),
+                  Text('Change', style: AppTextStyles.link),
+                  const Icon(Icons.expand_more_rounded, color: AppColors.primaryDark),
+                ],
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
 }
 
 class _Total extends StatelessWidget {
-  const _Total({required this.period, required this.total});
-  final _Period period;
+  const _Total({required this.range, required this.total});
+  final ActivityDates range;
   final EarningsTotal total;
 
   @override
   Widget build(BuildContext context) {
-    final label = switch (period) {
-      _Period.today => "TODAY'S EARNINGS",
-      _Period.week => 'EARNINGS THIS WEEK',
-      _Period.month => 'EARNINGS THIS MONTH',
-    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppTextStyles.overline),
+        Text('EARNED · ${range.label.toUpperCase()}', style: AppTextStyles.overline),
         const SizedBox(height: 4),
-        Text(FormatUtils.peso(total.earnings), style: AppTextStyles.display),
+        ValueSwap(value: total.earnings, child: Text(FormatUtils.peso(total.earnings), style: AppTextStyles.display)),
         AppSpacing.gapLg,
         StatsRow(pickups: total.pickups, delivered: total.deliveries),
       ],
@@ -225,27 +344,43 @@ class _Total extends StatelessWidget {
   }
 }
 
-/// Seven bars, today in coral. Tap a bar to see that day.
-class _WeekChart extends StatefulWidget {
-  const _WeekChart({required this.days});
+/// A bar per day of the range (scrolls sideways past two weeks), the last
+/// day picked first. Tap a bar to see that day.
+class _RangeChart extends StatefulWidget {
+  const _RangeChart({super.key, required this.days});
   final List<EarningsDay> days;
 
   @override
-  State<_WeekChart> createState() => _WeekChartState();
+  State<_RangeChart> createState() => _RangeChartState();
 }
 
-class _WeekChartState extends State<_WeekChart> {
+class _RangeChartState extends State<_RangeChart> {
   late int _selected = widget.days.length - 1;
 
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  bool _isToday(DateTime d) {
+    final n = DateTime.now();
+    return d.year == n.year && d.month == n.month && d.day == n.day;
+  }
+
+  /// Weekday names for a week or less, day numbers for longer ranges.
+  String _short(DateTime d) =>
+      widget.days.length <= 7 ? (_isToday(d) ? 'Today' : _weekdays[d.weekday - 1]) : '${d.day}';
+
   @override
   Widget build(BuildContext context) {
     final days = widget.days;
-    if (days.isEmpty) return const SizedBox.shrink();
     final top = days.map((d) => d.earnings).fold<double>(0, (a, b) => b > a ? b : a);
     final picked = days[_selected.clamp(0, days.length - 1)];
-    final isToday = _selected == days.length - 1;
+    final pickedLabel =
+        _isToday(picked.date) ? 'Today' : '${_weekdays[picked.date.weekday - 1]}, ${_datesLabel(picked.date, picked.date)}';
+    final scroll = days.length > 14;
+
+    final bars = Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [for (var i = 0; i < days.length; i++) _bar(i, top, fixedWidth: scroll ? 30 : null)],
+    );
 
     return SurfaceCard(
       child: Column(
@@ -253,12 +388,12 @@ class _WeekChartState extends State<_WeekChart> {
         children: [
           Row(
             children: [
-              Text('Last 7 days', style: AppTextStyles.h2),
-              const Spacer(),
-              Text(isToday ? 'Today' : _weekdays[picked.date.weekday - 1], style: AppTextStyles.caption),
-              const SizedBox(width: 6),
-              Text(FormatUtils.peso(picked.earnings),
-                  style: AppTextStyles.bodyStrong.copyWith(color: AppColors.primaryDark)),
+              Expanded(child: Text(pickedLabel, style: AppTextStyles.h2)),
+              ValueSwap(
+                value: _selected,
+                alignment: Alignment.centerRight,
+                child: Text(FormatUtils.peso(picked.earnings), style: AppTextStyles.numeric.copyWith(color: AppColors.success)),
+              ),
             ],
           ),
           Text(
@@ -269,46 +404,95 @@ class _WeekChartState extends State<_WeekChart> {
           AppSpacing.gapLg,
           SizedBox(
             height: 130,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (var i = 0; i < days.length; i++)
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() => _selected = i),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            margin: const EdgeInsets.symmetric(horizontal: 6),
-                            height: top <= 0 ? 6 : 6 + 94 * (days[i].earnings / top),
-                            decoration: BoxDecoration(
-                              color: i == _selected
-                                  ? AppColors.primary
-                                  : (i == days.length - 1 ? AppColors.primary.withValues(alpha: 0.45) : AppColors.primarySoft),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            i == days.length - 1 ? 'Today' : _weekdays[days[i].date.weekday - 1],
-                            style: AppTextStyles.caption.copyWith(
-                              fontSize: 10,
-                              fontWeight: i == _selected ? FontWeight.w800 : FontWeight.w500,
-                              color: i == _selected ? AppColors.primaryDark : AppColors.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            child: scroll ? SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: bars) : bars,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _bar(int i, double top, {double? fixedWidth}) {
+    final day = widget.days[i];
+    final selected = i == _selected;
+    final bar = Semantics(
+      button: true,
+      selected: selected,
+      label: '${_datesLabel(day.date, day.date)}: ${FormatUtils.peso(day.earnings)}',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _selected = i),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            AnimatedContainer(
+              duration: AppMotion.duration(context, AppMotion.content),
+              curve: AppMotion.enter,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              height: top <= 0 ? 6 : 6 + 94 * (day.earnings / top),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary : AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _short(day.date),
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 10.5,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                color: selected ? AppColors.primaryDark : AppColors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return fixedWidth != null ? SizedBox(width: fixedWidth, child: bar) : Expanded(child: bar);
+  }
+}
+
+/// The 5 latest finished batches, the rest behind "Show more".
+class _FinishedBatches extends StatefulWidget {
+  const _FinishedBatches({required this.batches});
+  final List<FinishedBatch> batches;
+
+  static const shown = 5;
+
+  @override
+  State<_FinishedBatches> createState() => _FinishedBatchesState();
+}
+
+class _FinishedBatchesState extends State<_FinishedBatches> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final all = widget.batches;
+    final more = all.length - _FinishedBatches.shown;
+    return Column(
+      children: [
+        for (final b in all.take(_FinishedBatches.shown)) _BatchRow(batch: b),
+        AnimatedSize(
+          duration: AppMotion.duration(context, AppMotion.small),
+          curve: AppMotion.change,
+          alignment: Alignment.topCenter,
+          child: _open && more > 0
+              ? Column(children: [for (final b in all.skip(_FinishedBatches.shown)) _BatchRow(batch: b)])
+              : const SizedBox(width: double.infinity),
+        ),
+        if (more > 0)
+          TextButton.icon(
+            onPressed: () => setState(() => _open = !_open),
+            iconAlignment: IconAlignment.end,
+            icon: AnimatedRotation(
+              turns: _open ? 0.5 : 0,
+              duration: AppMotion.duration(context, AppMotion.small),
+              child: const Icon(Icons.expand_more_rounded),
+            ),
+            label: Text(_open ? 'Show less' : 'Show $more more'),
+          ),
+      ],
     );
   }
 }
@@ -376,17 +560,17 @@ class _CodCard extends StatelessWidget {
           ),
         ),
         InfoRow(
-          icon: Icons.account_balance_outlined,
+          icon: Icons.outbox_outlined,
           label: 'Remitted this month',
           value: FormatUtils.peso(cod.remittedThisMonth),
         ),
         if (cod.lastAmount != null)
           InfoRow(
-            icon: Icons.receipt_long_outlined,
+            icon: Icons.history_rounded,
             label: 'Last remittance${cod.lastAt != null ? ' · ${_date(cod.lastAt!)}' : ''}',
             value: FormatUtils.peso(cod.lastAmount!),
             trailing: switch (cod.lastStatus) {
-              'disputed' => const TagChip(label: 'Disputed'),
+              'disputed' => const TagChip.error(label: 'Disputed'),
               'awaiting_rider' => const TagChip.warning(label: 'Confirm at handover'),
               _ => const TagChip.success(label: 'Counted'),
             },
@@ -442,20 +626,9 @@ class _Status extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 80),
-      child: Center(
-        child: error == null
-            ? const CircularProgressIndicator(color: AppColors.primary)
-            : Column(
-                children: [
-                  Text(error!, textAlign: TextAlign.center, style: AppTextStyles.body),
-                  AppSpacing.gapLg,
-                  AppButton(label: 'Try again', onPressed: onRetry, expand: false),
-                ],
-              ),
-      ),
-    );
+    return error == null
+        ? const StateView.loading(skeleton: CardListSkeleton(count: 2))
+        : StateView.error(message: error!, onRetry: onRetry);
   }
 }
 

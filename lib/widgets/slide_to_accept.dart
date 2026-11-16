@@ -74,7 +74,7 @@ class _SlideToAcceptState extends State<SlideToAccept> {
                 opacity: 1 - progress,
                 child: Text(widget.label,
                     style: AppTextStyles.button.copyWith(
-                        color: widget.enabled ? Colors.white : AppColors.textMuted)),
+                        color: widget.enabled ? AppColors.onPrimary : AppColors.textMuted)),
               ),
             ),
             AnimatedPositioned(

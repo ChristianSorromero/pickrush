@@ -5,7 +5,9 @@ import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/format_utils.dart';
 import 'package:rider_app/models/batch_models.dart';
+import 'package:rider_app/riderpages/pickups/pickups_screen.dart' show batchProgressLabel;
 import 'package:rider_app/widgets/app_button.dart';
+import 'package:rider_app/widgets/motion.dart';
 import 'package:rider_app/widgets/batch_progress.dart';
 import 'package:rider_app/widgets/icon_tile.dart';
 import 'package:rider_app/widgets/slide_to_accept.dart';
@@ -38,16 +40,24 @@ class NextAssignmentCard extends StatelessWidget {
     final next = b.nextStop ?? b.stops.first;
     final more = b.stops.length - 1;
 
-    return InkWell(
-      onTap: onOpen,
-      borderRadius: AppRadius.lgAll,
-      child: SurfaceCard(
-        child: Column(
+    final tone = b.isOffer ? TaskTone.offer : TaskTone.active;
+    return Pressable(
+      scale: 0.98,
+      child: Material(
+        color: AppColors.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: const BorderSide(color: AppColors.border)),
+        child: InkWell(
+          onTap: onOpen,
+          child: Container(
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: tone.color, width: 4))),
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                _tag(b),
+                Flexible(child: _tag(b)),
                 const Spacer(),
                 const Icon(Icons.location_on_outlined,
                     size: 16, color: AppColors.textSecondary),
@@ -57,15 +67,16 @@ class NextAssignmentCard extends StatelessWidget {
               ],
             ),
             AppSpacing.gapMd,
-            Text('Batch #${b.batchNo}',
-                style: AppTextStyles.h2.copyWith(fontSize: 20)),
+            Text('Batch #${b.batchNo}', style: AppTextStyles.numeric.copyWith(fontSize: 20)),
             AppSpacing.gapMd,
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 IconTile(
                     icon: b.isDelivery ? Icons.location_on_rounded : Icons.storefront_rounded,
-                    size: 36),
+                    color: tone.color,
+                    background: tone.soft,
+                    size: 40),
                 AppSpacing.gapMd,
                 Expanded(
                   child: Column(
@@ -97,11 +108,10 @@ class NextAssignmentCard extends StatelessWidget {
               AppSpacing.gapMd,
               Row(
                 children: [
-                  Text('Estimated Earning', style: AppTextStyles.body),
-                  const Spacer(),
+                  Expanded(child: Text('Estimated earning', style: AppTextStyles.body)),
+                  const SizedBox(width: AppSpacing.sm),
                   Text(FormatUtils.peso(b.estEarnings),
-                      style: AppTextStyles.h2
-                          .copyWith(color: AppColors.primaryDark)),
+                      style: AppTextStyles.numeric.copyWith(color: AppColors.success, fontSize: 17)),
                 ],
               ),
             ],
@@ -114,6 +124,8 @@ class NextAssignmentCard extends StatelessWidget {
                 onPressed: onOpen,
               ),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -123,13 +135,9 @@ class NextAssignmentCard extends StatelessWidget {
 /// READY FOR PICKUP / READY FOR DELIVERY on an offer, then where the batch is.
 Widget _tag(RiderBatch b) {
   if (b.isOffer) {
-    return TagChip.warning(label: b.isDelivery ? 'New · Ready for delivery' : 'New · Ready for pickup');
+    return TagChip.info(label: b.isDelivery ? 'New · Delivery offer' : 'New · Pickup offer');
   }
-  if (!b.isDelivery) {
-    return TagChip.success(label: b.allPickedUp ? 'Bring to station' : 'In progress');
-  }
-  if (!b.hasStarted) return const TagChip.warning(label: 'Load at station');
-  return TagChip.success(label: b.allStopsDone ? 'Return to hub' : 'Out for delivery');
+  return TagChip.tone(label: batchProgressLabel(b), tone: TaskTone.active);
 }
 
 class _Empty extends StatelessWidget {
@@ -143,12 +151,17 @@ class _Empty extends StatelessWidget {
           horizontal: AppSpacing.lg, vertical: AppSpacing.xxl),
       child: Column(
         children: [
-          Icon(
-            isOnline ? Icons.inventory_2_outlined : Icons.power_settings_new_rounded,
-            size: 32,
-            color: AppColors.textMuted,
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(color: AppColors.surfaceMuted, shape: BoxShape.circle),
+            child: Icon(
+              isOnline ? Icons.inventory_2_outlined : Icons.power_settings_new_rounded,
+              size: 26,
+              color: AppColors.textSecondary,
+            ),
           ),
-          AppSpacing.gapSm,
+          AppSpacing.gapMd,
           Text('No assignment yet', style: AppTextStyles.bodyStrong),
           const SizedBox(height: 2),
           Text(

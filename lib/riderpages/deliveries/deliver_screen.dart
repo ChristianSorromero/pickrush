@@ -16,6 +16,9 @@ import 'package:rider_app/widgets/scan_camera.dart';
 import 'package:rider_app/widgets/slide_to_accept.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
+import 'package:rider_app/widgets/motion.dart';
+import 'package:rider_app/widgets/app_button.dart';
 
 /// At the door: scan the parcel (it must be one for this stop), see what to
 /// collect, take a proof-of-delivery photo, then Confirm Delivery. Moves the
@@ -65,9 +68,7 @@ class _DeliverScreenState extends State<DeliverScreen> {
     if (_lastRejected != code) {
       _lastRejected = code;
       ScanFeedback.error();
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.primaryDark));
+      AppToast.error(context, message);
     }
     return message;
   }
@@ -77,13 +78,13 @@ class _DeliverScreenState extends State<DeliverScreen> {
       final shot = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 70, maxWidth: 1600);
       return shot?.path;
     } catch (_) {
-      _toast('Could not open the camera for the photo.');
+      _toast('Could not open the camera for the photo.', type: ToastType.error);
       return null;
     }
   }
 
-  void _toast(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message, {ToastType type = ToastType.success}) {
+    if (mounted) AppToast.show(context, message, type: type);
   }
 
   Future<void> _confirm() async {
@@ -95,7 +96,7 @@ class _DeliverScreenState extends State<DeliverScreen> {
       }
     } on TaskException catch (e) {
       ScanFeedback.error();
-      _toast(e.message);
+      _toast(e.message, type: ToastType.error);
       rethrow; // resets the slider
     }
     assignmentWatcher.poll();
@@ -175,7 +176,11 @@ class _DeliverScreenState extends State<DeliverScreen> {
                     children: [
                       Text('PARCEL DETAILS', style: AppTextStyles.overline),
                       const Spacer(),
-                      Text('${_scannedItems.length}/$total', style: AppTextStyles.h2),
+                      ValueSwap(
+                        value: _scannedItems.length,
+                        alignment: Alignment.centerRight,
+                        child: Text('${_scannedItems.length}/$total', style: AppTextStyles.numeric.copyWith(fontSize: 18)),
+                      ),
                     ],
                   ),
                   AppSpacing.gapMd,
@@ -193,15 +198,36 @@ class _DeliverScreenState extends State<DeliverScreen> {
                     ),
                     if (_codDue > 0) ...[
                       AppSpacing.gapSm,
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(color: AppColors.warningSoft, borderRadius: AppRadius.mdAll),
-                        child: Text(
-                            _scannedItems.every((i) => i.isReturn)
-                                ? 'Collect exactly ${FormatUtils.peso(_codDue)} return fee from the seller before handing the parcel back.'
-                                : 'Collect exactly ${FormatUtils.peso(_codDue)} in cash before handing over.',
-                            style: AppTextStyles.bodyStrong.copyWith(color: AppColors.warning)),
+                      Semantics(
+                        liveRegion: true,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          decoration: BoxDecoration(
+                            color: AppColors.warningSoft,
+                            borderRadius: AppRadius.mdAll,
+                            border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_scannedItems.every((i) => i.isReturn) ? 'COLLECT RETURN FEE' : 'COLLECT CASH',
+                                  style: AppTextStyles.overline.copyWith(color: AppColors.warning)),
+                              const SizedBox(height: 2),
+                              ValueSwap(
+                                value: _codDue,
+                                child: Text(FormatUtils.peso(_codDue),
+                                    style: AppTextStyles.display.copyWith(fontSize: 30, color: AppColors.textPrimary)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                  _scannedItems.every((i) => i.isReturn)
+                                      ? 'Exactly this amount from the seller before handing the parcel back.'
+                                      : 'Exactly this amount in cash before handing over.',
+                                  style: AppTextStyles.caption.copyWith(color: AppColors.warning, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                     AppSpacing.gapLg,
@@ -219,6 +245,11 @@ class _DeliverScreenState extends State<DeliverScreen> {
               ),
             ),
             AppSpacing.gapXl,
+            _Steps(steps: [
+              ('Scan parcel', _scannedItems.isNotEmpty),
+              ('Photo proof', _photoPath != null),
+            ]),
+            AppSpacing.gapMd,
             SlideToAccept(
               label: _scannedItems.length < total && _scannedItems.isNotEmpty
                   ? 'Confirm Delivery (${_scannedItems.length} of $total)'
@@ -237,13 +268,11 @@ class _DeliverScreenState extends State<DeliverScreen> {
               style: AppTextStyles.caption,
             ),
             AppSpacing.gapMd,
-            Center(
-              child: TextButton.icon(
-                onPressed: _toDeliver.isEmpty ? null : _cantDeliver,
-                icon: const Icon(Icons.do_not_disturb_alt_rounded, size: 18),
-                label: const Text("Can't deliver"),
-                style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
-              ),
+            AppButton(
+              label: "Can't deliver",
+              icon: Icons.do_not_disturb_alt_rounded,
+              variant: AppButtonVariant.destructive,
+              onPressed: _toDeliver.isEmpty ? null : _cantDeliver,
             ),
           ],
         ),
@@ -479,27 +508,63 @@ class _FailSheetState extends State<_FailSheet> {
               ),
               if (_error != null) ...[
                 AppSpacing.gapSm,
-                Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.primaryDark)),
+                Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.errorStrong)),
               ],
               AppSpacing.gapMd,
               ElevatedButton(
                 onPressed: ready && !_sending ? _send : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.onPrimary,
                   disabledBackgroundColor: AppColors.border,
                   elevation: 0,
                   minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+                  shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                 ),
                 child: _sending
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
                     : const Text('Record failed delivery'),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// What is left before the delivery can be confirmed, ticked as it is done.
+class _Steps extends StatelessWidget {
+  const _Steps({required this.steps});
+  final List<(String, bool)> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.xs,
+      children: [
+        for (final (label, done) in steps)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedSwitcher(
+                duration: AppMotion.duration(context, AppMotion.icon),
+                child: Icon(
+                  done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                  key: ValueKey(done),
+                  size: 18,
+                  color: done ? AppColors.success : AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(label,
+                  style: AppTextStyles.caption.copyWith(
+                      color: done ? AppColors.success : AppColors.textSecondary, fontWeight: FontWeight.w700)),
+            ],
+          ),
+      ],
     );
   }
 }

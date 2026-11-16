@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 
@@ -7,10 +8,16 @@ import 'package:vibration/vibration.dart';
 class ScanFeedback {
   ScanFeedback._();
 
+  /// The last result (true = accepted) and a counter, so the viewfinder can
+  /// flash on every scan, at the same moment as the beep or buzz.
+  static final ValueNotifier<(bool, int)?> last = ValueNotifier(null);
+  static int _seq = 0;
+
   static final AudioPlayer _player = AudioPlayer(playerId: 'scan-beep')
     ..setReleaseMode(ReleaseMode.stop);
 
   static Future<void> success() async {
+    last.value = (true, ++_seq);
     HapticFeedback.lightImpact();
     try {
       await _player.stop();
@@ -21,6 +28,7 @@ class ScanFeedback {
   }
 
   static Future<void> error() async {
+    last.value = (false, ++_seq);
     try {
       if (await Vibration.hasVibrator()) {
         await Vibration.vibrate(pattern: const [0, 180, 90, 260]);

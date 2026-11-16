@@ -7,6 +7,7 @@ import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/services/scan_feedback.dart';
 import 'package:rider_app/widgets/scan_camera.dart';
+import 'package:rider_app/widgets/motion.dart';
 
 /// Loading at the station: scan each parcel of the batch onto the vehicle.
 /// Every good scan beeps and is saved right away; a wrong one buzzes.
@@ -134,8 +135,11 @@ class _LoadSheetState extends State<_LoadSheet> {
                 children: [
                   Container(height: 8, width: 8, decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle)),
                   const SizedBox(width: 6),
-                  Text('$_loaded of $_total scanned',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.w700)),
+                  ValueSwap(
+                    value: _loaded,
+                    child: Text('$_loaded of $_total scanned',
+                        style: AppTextStyles.caption.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.w700)),
+                  ),
                 ],
               ),
             ),
@@ -150,7 +154,7 @@ class _LoadSheetState extends State<_LoadSheet> {
               AppSpacing.gapSm,
               Text(_message!,
                   style: AppTextStyles.bodyStrong.copyWith(
-                      color: _messageIsError ? AppColors.primary : AppColors.success)),
+                      color: _messageIsError ? AppColors.errorStrong : AppColors.success)),
             ],
             if (_lastItem != null) ...[
               AppSpacing.gapMd,
@@ -190,10 +194,10 @@ class _LoadSheetState extends State<_LoadSheet> {
               onPressed: () => Navigator.of(context).pop(_batch),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.onPrimary,
                 elevation: 0,
                 minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+                shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
               ),
               child: const Text('Done'),
             ),

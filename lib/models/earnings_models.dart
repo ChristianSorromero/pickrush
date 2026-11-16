@@ -32,6 +32,24 @@ class EarningsDay extends EarningsTotal {
       );
 }
 
+/// What finished tasks earned between two days the rider picked, from
+/// `/api/rider/earnings/range`. [days] is empty for ranges over 62 days.
+class EarningsRange {
+  const EarningsRange({required this.from, required this.to, required this.total, required this.days});
+
+  final DateTime from;
+  final DateTime to;
+  final EarningsTotal total;
+  final List<EarningsDay> days;
+
+  factory EarningsRange.fromJson(Map<String, dynamic> j) => EarningsRange(
+        from: DateTime.parse(j['from'] as String),
+        to: DateTime.parse(j['to'] as String),
+        total: EarningsTotal.fromJson(j['total'] as Map<String, dynamic>),
+        days: [for (final d in j['days'] as List) EarningsDay.fromJson(d as Map<String, dynamic>)],
+      );
+}
+
 class FinishedBatch {
   const FinishedBatch({
     required this.id,

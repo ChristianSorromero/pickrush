@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
-import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/models/dashboard_models.dart';
 import 'package:rider_app/riderpages/activity_screen.dart';
 import 'package:rider_app/riderpages/notifications_screen.dart';
@@ -10,12 +9,11 @@ import 'package:rider_app/riderpages/pickups/batch_routes.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/activity_timeline.dart';
-import 'package:rider_app/widgets/app_button.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 import 'package:rider_app/widgets/dashboard_top_bar.dart';
 import 'package:rider_app/widgets/earnings_header.dart';
 import 'package:rider_app/widgets/next_assignment_card.dart';
 import 'package:rider_app/widgets/section_header.dart';
-import 'package:rider_app/widgets/stats_row.dart';
 
 /// Home: online status, today's numbers, the next batch and recent activity,
 /// all from `/api/rider/dashboard`. Reloads when the station sends something.
@@ -32,6 +30,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   DashboardData? _data;
   String? _error;
+  bool _offline = false;
   bool _switching = false;
   int _seenChanges = -1;
 
@@ -67,7 +66,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         });
       }
     } on TaskException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _offline = e.offline;
+        });
+      }
     }
   }
 
@@ -76,33 +80,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (data == null || _switching) return;
     final goOnline = !data.isOnline;
     if (!goOnline) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Go offline?'),
-          content: const Text(
-              'Your station will stop assigning you new pickups until you go online again.'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Stay online')),
-            TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Go offline')),
-          ],
-        ),
+      final ok = await confirmDialog(
+        context,
+        title: 'Go offline?',
+        message: 'Your station will stop assigning you new pickups until you go online again.',
+        confirmLabel: 'Go offline',
+        cancelLabel: 'Stay online',
       );
-      if (ok != true) return;
+      if (!ok) return;
     }
     setState(() => _switching = true);
     try {
       await riderTasks.setOnline(goOnline);
       await _load();
+      if (mounted) AppToast.success(context, goOnline ? "You're online" : "You're offline");
     } on TaskException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-      }
+      if (mounted) AppToast.error(context, e.message);
     } finally {
       if (mounted) setState(() => _switching = false);
     }
@@ -124,8 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _load();
     } on TaskException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        AppToast.error(context, e.message);
         _load();
       }
       rethrow; // resets the slider
@@ -137,22 +129,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final data = _data;
     if (data == null) {
       return SafeArea(
-        child: Center(
-          child: _error == null
-              ? const CircularProgressIndicator(color: AppColors.primary)
-              : Padding(
-                  padding: const EdgeInsets.all(AppSpacing.xxl),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!,
-                          textAlign: TextAlign.center, style: AppTextStyles.body),
-                      AppSpacing.gapLg,
-                      AppButton(label: 'Try again', onPressed: _load, expand: false),
-                    ],
-                  ),
-                ),
-        ),
+        child: _error == null
+            ? const _DashboardSkeleton()
+            : Center(child: StateView.error(message: _error!, offline: _offline, onRetry: _load)),
       );
     }
 
@@ -171,13 +150,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               isOnline: data.isOnline,
               hubName: data.hub?.name ?? 'No station',
               hasNotifications: assignmentWatcher.unreadNotifications > 0,
+              switching: _switching,
               onToggleOnline: _toggleOnline,
               onNotifications: _openNotifications,
             ),
             AppSpacing.gapXl,
-            EarningsHeader(amount: data.todayEarnings),
-            AppSpacing.gapLg,
-            StatsRow(pickups: data.pickups, delivered: data.delivered),
+            EarningsHeader(amount: data.todayEarnings, pickups: data.pickups, delivered: data.delivered),
             AppSpacing.gapXxl,
             SectionHeader(
               title: 'Next Assignment',
@@ -200,8 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Center(
                 child: TextButton(
                   onPressed: widget.onSeeAllPickups,
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
-                  child: Text('+$others more ${others == 1 ? 'batch' : 'batches'} in Pickups'),
+                  child: Text('+$others more ${others == 1 ? 'batch' : 'batches'} in Tasks'),
                 ),
               ),
             ],
@@ -214,6 +191,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
             AppSpacing.gapMd,
             ActivityTimeline(items: data.activity),
             AppSpacing.gapLg,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Loading Today: the shape of the header, the earnings card and a task card.
+class _DashboardSkeleton extends StatelessWidget {
+  const _DashboardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SkeletonGroup(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.screenH, vertical: AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [Skeleton(width: 110, height: 26), Spacer(), Skeleton(width: 90, height: 44, radius: 22)]),
+            SizedBox(height: AppSpacing.xl),
+            Skeleton(height: 140, radius: AppRadius.lg),
+            SizedBox(height: AppSpacing.xxl),
+            Skeleton(width: 150, height: 18),
+            SizedBox(height: AppSpacing.md),
+            Skeleton(height: 220, radius: AppRadius.lg),
           ],
         ),
       ),

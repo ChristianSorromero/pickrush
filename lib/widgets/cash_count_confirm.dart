@@ -8,6 +8,7 @@ import 'package:rider_app/models/earnings_models.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/section_card.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// The station counted the cash the rider handed over. The rider confirms the
 /// count, or rejects it and the station counts again with them. Until then
@@ -29,10 +30,10 @@ class _CashCountConfirmState extends State<CashCountConfirm> {
     try {
       final message = await request();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      AppToast.success(context, message);
       await widget.onAnswered();
     } on TaskException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) AppToast.error(context, e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

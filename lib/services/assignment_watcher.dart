@@ -39,6 +39,12 @@ class AssignmentWatcher extends ChangeNotifier {
   bool get hasPickupOffer => offeredBatchIds.any((id) => !offeredDeliveryIds.contains(id));
   bool get hasDeliveryOffer => offeredDeliveryIds.isNotEmpty;
 
+  /// When the last check-in reached the server (null until the first one).
+  DateTime? lastSyncAt;
+
+  /// The last check-in could not reach the server.
+  bool unreachable = false;
+
   /// Bumped on every change; screens reload when it moves.
   int changes = 0;
 
@@ -86,6 +92,11 @@ class AssignmentWatcher extends ChangeNotifier {
       offeredBatchIds = pulse.offeredBatchIds;
       offeredDeliveryIds = pulse.offeredDeliveryIds;
       _latestNotificationId = pulse.latest?.id;
+      lastSyncAt = DateTime.now();
+      if (unreachable) {
+        unreachable = false;
+        notifyListeners();
+      }
 
       for (final id in pulse.offeredBatchIds) {
         if (_announced.add(id)) {
@@ -102,7 +113,11 @@ class AssignmentWatcher extends ChangeNotifier {
         stop();
         onSignedOut?.call();
       }
-      // Offline: try again on the next tick.
+      // Offline: say so, and try again on the next tick.
+      if (e.offline && !unreachable) {
+        unreachable = true;
+        notifyListeners();
+      }
     } finally {
       _polling = false;
     }
@@ -128,6 +143,8 @@ class AssignmentWatcher extends ChangeNotifier {
     unreadNotifications = 0;
     offeredBatchIds = const [];
     offeredDeliveryIds = const [];
+    lastSyncAt = null;
+    unreachable = false;
   }
 }
 

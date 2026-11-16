@@ -9,6 +9,7 @@ import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/riderpages/handover_parts.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// At the station: each parcel ticks to "Received" as the staff scan it in.
 /// When all are in, the batch is done.
@@ -24,6 +25,8 @@ class HandoverScreen extends StatefulWidget {
 class _HandoverScreenState extends State<HandoverScreen> {
   late RiderBatch _batch = widget.batch;
   Timer? _timer;
+  DateTime? _syncedAt;
+  bool _syncFailing = false;
 
   @override
   void initState() {
@@ -42,13 +45,18 @@ class _HandoverScreenState extends State<HandoverScreen> {
     try {
       final batch = await riderTasks.batch(_batch.id);
       if (!mounted) return;
-      setState(() => _batch = batch);
+      setState(() {
+        _batch = batch;
+        _syncedAt = DateTime.now();
+        _syncFailing = false;
+      });
       if (batch.status == BatchStatus.completed) {
         _timer?.cancel();
         assignmentWatcher.poll();
       }
     } on TaskException {
-      // Try again on the next tick.
+      // Try again on the next tick; the sync line says so.
+      if (mounted && !_syncFailing) setState(() => _syncFailing = true);
     }
   }
 
@@ -77,6 +85,10 @@ class _HandoverScreenState extends State<HandoverScreen> {
                 ),
               ),
               HandoverHeader(batch: b, done: received, total: items.length, complete: complete),
+              if (!complete) ...[
+                AppSpacing.gapSm,
+                SyncStatus(lastSyncAt: _syncedAt, failing: _syncFailing),
+              ],
               AppSpacing.gapLg,
               HandoverStep(
                 number: null,

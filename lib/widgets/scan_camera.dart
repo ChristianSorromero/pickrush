@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
+import 'package:rider_app/services/scan_feedback.dart';
 
 /// The waybill viewfinder used by every scanner in the app: back camera,
 /// coral corner frame, flashlight, and a plain message when the camera is off.
@@ -64,6 +65,7 @@ class _ScanCameraState extends State<ScanCamera> {
               ),
             ),
             const IgnorePointer(child: _Frame()),
+            const IgnorePointer(child: _ScanFlash()),
             Positioned(
               top: 10,
               right: 10,
@@ -82,6 +84,73 @@ class _ScanCameraState extends State<ScanCamera> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Green (accepted) or red (refused) edge glow for a moment after each scan.
+/// Starts with the beep; nothing waits for it.
+class _ScanFlash extends StatefulWidget {
+  const _ScanFlash();
+
+  @override
+  State<_ScanFlash> createState() => _ScanFlashState();
+}
+
+class _ScanFlashState extends State<_ScanFlash> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
+  bool _ok = true;
+  int? _seen;
+
+  @override
+  void initState() {
+    super.initState();
+    _seen = ScanFeedback.last.value?.$2;
+    ScanFeedback.last.addListener(_onScan);
+  }
+
+  void _onScan() {
+    final v = ScanFeedback.last.value;
+    if (v == null || v.$2 == _seen || !mounted) return;
+    _seen = v.$2;
+    setState(() => _ok = v.$1);
+    _c.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    ScanFeedback.last.removeListener(_onScan);
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _ok ? AppColors.success : AppColors.error;
+    final reduced = AppMotion.reduced(context);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        // Quick rise, slower fade; a steady short flash under reduced motion.
+        final t = _c.value;
+        final a = !_c.isAnimating && t == 0
+            ? 0.0
+            : reduced
+                ? (t < 1 ? 1.0 : 0.0)
+                : (t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8);
+        if (a <= 0) return const SizedBox.expand();
+        return Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: color.withValues(alpha: a), width: 8),
+            color: color.withValues(alpha: 0.18 * a),
+          ),
+          alignment: Alignment.center,
+          child: Opacity(
+            opacity: a,
+            child: Icon(_ok ? Icons.check_circle_rounded : Icons.cancel_rounded, size: 64, color: Colors.white),
+          ),
+        );
+      },
     );
   }
 }

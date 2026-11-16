@@ -37,7 +37,7 @@ class CodeInput extends StatelessWidget {
                   final filled = i < text.length;
                   final current = focusNode.hasFocus && i == text.length;
                   final borderColor = hasError
-                      ? AppColors.primaryDark
+                      ? AppColors.errorStrong
                       : (filled || current)
                           ? AppColors.primary
                           : AppColors.border;

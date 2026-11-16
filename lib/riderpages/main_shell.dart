@@ -4,21 +4,28 @@ import 'package:flutter/services.dart';
 import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
-import 'package:rider_app/models/dashboard_models.dart';
+import 'package:rider_app/main.dart';
 import 'package:rider_app/models/batch_models.dart';
+import 'package:rider_app/models/dashboard_models.dart';
 import 'package:rider_app/riderpages/account_screen.dart';
+import 'package:rider_app/riderpages/earnings_screen.dart';
 import 'package:rider_app/riderpages/login.dart';
 import 'package:rider_app/riderpages/pickups/batch_routes.dart';
-import 'package:rider_app/riderpages/pickups/pickups_screen.dart';
-import 'package:rider_app/riderpages/earnings_screen.dart';
 import 'package:rider_app/riderpages/rider_dashboard.dart';
+import 'package:rider_app/riderpages/tasks_screen.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/auth_service.dart';
+import 'package:rider_app/services/rider_task_service.dart';
+import 'package:rider_app/widgets/active_task_bar.dart';
 import 'package:rider_app/widgets/app_bottom_nav.dart';
+import 'package:rider_app/widgets/app_button.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 import 'package:rider_app/widgets/icon_tile.dart';
 
-/// Hosts the bottom navigation and keeps each tab alive. While it is open it
-/// watches for new pickup batches and pops up a notice when one arrives.
+/// Hosts the four tabs (Today · Tasks · Wallet · Account) and keeps each
+/// alive. Above the tabs: the batch in progress, one tap away, and a notice
+/// while the app can't reach the server. While open it watches for new
+/// batches and pops up a notice when one arrives.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -26,9 +33,17 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver, RouteAware {
   int _index = 0;
+  TaskSegment _segment = TaskSegment.offers;
   bool _offerOpen = false;
+
+  /// The logistics company the rider works for, for the top bar.
+  String? _company;
+
+  /// Accepted batches, for the active-task bar.
+  List<RiderBatch> _active = const [];
+  int _seenChanges = -1;
 
   @override
   void initState() {
@@ -37,15 +52,34 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     assignmentWatcher
       ..onNewOffer = _announce
       ..onSignedOut = _signedOut
-      ..addListener(_rebuild)
+      ..addListener(_onWatcher)
       ..start();
+    _loadActive();
+    _loadCompany();
+  }
+
+  Future<void> _loadCompany() async {
+    try {
+      final account = await authService.me();
+      if (mounted) setState(() => _company = account.company?.name);
+    } on AuthException {
+      // Offline: try again when the station next sends something.
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) appRouteObserver.subscribe(this, route);
   }
 
   @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
     assignmentWatcher
-      ..removeListener(_rebuild)
+      ..removeListener(_onWatcher)
       ..onNewOffer = null
       ..onSignedOut = null
       ..stop();
@@ -64,8 +98,53 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
   }
 
-  void _rebuild() {
+  /// Back from a batch, a scan or any other page: progress may have moved.
+  @override
+  void didPopNext() => _loadActive();
+
+  void _onWatcher() {
+    if (assignmentWatcher.changes != _seenChanges) {
+      _loadActive();
+      if (_company == null) _loadCompany();
+    }
     if (mounted) setState(() {});
+  }
+
+  Future<void> _loadActive() async {
+    _seenChanges = assignmentWatcher.changes;
+    try {
+      final batches = await riderTasks.batches();
+      if (!mounted) return;
+      setState(() => _active = batches.where((b) => b.status == BatchStatus.accepted).toList());
+    } on TaskException {
+      // Keep what we had; the offline banner tells the rider.
+    }
+  }
+
+  Future<void> _openActive() async {
+    final b = _active.firstOrNull;
+    if (b == null) return;
+    if (_active.length > 1) {
+      // Several in progress: show them all.
+      setState(() {
+        _index = 1;
+        _segment = b.isDelivery ? TaskSegment.deliveries : TaskSegment.pickups;
+      });
+      return;
+    }
+    await openBatch(context, b);
+  }
+
+  /// "+N more" on Today: the Tasks tab on the most useful segment.
+  void _showTasks() {
+    setState(() {
+      _index = 1;
+      _segment = assignmentWatcher.offeredBatchIds.isNotEmpty
+          ? TaskSegment.offers
+          : (_active.firstOrNull?.isDelivery ?? false)
+              ? TaskSegment.deliveries
+              : TaskSegment.pickups;
+    });
   }
 
   Future<void> _announce(int batchId, RiderNotification? n) async {
@@ -94,29 +173,109 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final w = assignmentWatcher;
     final items = [
-      AppNavItem(label: 'Home', icon: Icons.home_outlined, activeIcon: Icons.home_rounded, showBadge: assignmentWatcher.unreadNotifications > 0),
-      AppNavItem(label: 'Pickups', icon: Icons.inventory_2_outlined, activeIcon: Icons.inventory_2_rounded, showBadge: w.hasPickupOffer),
-      AppNavItem(label: 'Deliveries', icon: Icons.local_shipping_outlined, activeIcon: Icons.local_shipping_rounded, showBadge: w.hasDeliveryOffer),
-      const AppNavItem(label: 'Earnings', icon: Icons.account_balance_wallet_outlined, activeIcon: Icons.account_balance_wallet_rounded),
+      const AppNavItem(label: 'Today', icon: Icons.today_outlined, activeIcon: Icons.today_rounded),
+      AppNavItem(
+          label: 'Tasks',
+          icon: Icons.assignment_outlined,
+          activeIcon: Icons.assignment_rounded,
+          showBadge: w.offeredBatchIds.isNotEmpty),
+      const AppNavItem(
+          label: 'Wallet',
+          icon: Icons.account_balance_wallet_outlined,
+          activeIcon: Icons.account_balance_wallet_rounded),
       const AppNavItem(label: 'Account', icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
+      body: Column(
         children: [
-          DashboardScreen(onSeeAllPickups: () => setState(() => _index = 1)),
-          const PickupsScreen(),
-          const PickupsScreen(type: BatchType.delivery),
-          const EarningsScreen(),
-          const AccountScreen(),
+          // Fixed above every tab: who the rider works for, then the offline notice.
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _CompanyBar(name: _company),
+                OfflineBanner(visible: w.unreachable, lastSyncAt: w.lastSyncAt),
+              ],
+            ),
+          ),
+          Expanded(
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: IndexedStack(
+                index: _index,
+                children: [
+                  DashboardScreen(onSeeAllPickups: _showTasks),
+                  TasksScreen(segment: _segment, onSegment: (s) => setState(() => _segment = s)),
+                  const EarningsScreen(),
+                  const AccountScreen(),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
-      bottomNavigationBar: AppBottomNav(
-        items: items,
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ActiveTaskBar(
+            batch: _active.firstOrNull,
+            moreCount: _active.length - 1,
+            onOpen: _openActive,
+          ),
+          AppBottomNav(
+            items: items,
+            currentIndex: _index,
+            onTap: (i) => setState(() => _index = i),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+/// The strip at the top of the app: the logistics company the rider is hired
+/// by (Pickrush, Mobloop...). Stays put while the tabs scroll under it.
+class _CompanyBar extends StatelessWidget {
+  const _CompanyBar({required this.name});
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: AppMotion.duration(context, AppMotion.small),
+      curve: AppMotion.change,
+      alignment: Alignment.topCenter,
+      child: name == null
+          ? const SizedBox(width: double.infinity)
+          : Semantics(
+              header: true,
+              label: 'Hired by $name',
+              excludeSemantics: true,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(AppSpacing.screenH, AppSpacing.sm, AppSpacing.screenH, AppSpacing.sm),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(bottom: BorderSide(color: AppColors.border)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.business_rounded, size: 20, color: AppColors.primaryDark),
+                    const SizedBox(width: AppSpacing.sm),
+                    Flexible(
+                      child: Text(
+                        name!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.h2.copyWith(fontSize: 18, color: AppColors.primaryDark, letterSpacing: 0.2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }
@@ -128,7 +287,6 @@ class _NewOfferDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xxl),
         child: Column(
@@ -145,24 +303,12 @@ class _NewOfferDialog extends StatelessWidget {
               style: AppTextStyles.body,
             ),
             AppSpacing.gapXl,
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
-                ),
-                child: const Text('View assignment'),
-              ),
-            ),
-            TextButton(
+            AppButton(label: 'View assignment', onPressed: () => Navigator.pop(context, true)),
+            AppSpacing.gapSm,
+            AppButton(
+              label: 'Later',
+              variant: AppButtonVariant.outline,
               onPressed: () => Navigator.pop(context, false),
-              style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-              child: const Text('Later'),
             ),
           ],
         ),

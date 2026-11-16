@@ -233,13 +233,13 @@ class _ErrorBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: AppRadius.mdAll),
+      decoration: BoxDecoration(color: AppColors.errorSoft, borderRadius: AppRadius.mdAll),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, size: 18, color: AppColors.primaryDark),
+          const Icon(Icons.error_outline_rounded, size: 18, color: AppColors.errorStrong),
           AppSpacing.gapSm,
           Expanded(
-            child: Text(message, style: AppTextStyles.bodyStrong.copyWith(color: AppColors.primaryDark)),
+            child: Text(message, style: AppTextStyles.bodyStrong.copyWith(color: AppColors.errorStrong)),
           ),
         ],
       ),

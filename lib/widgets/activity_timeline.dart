@@ -51,8 +51,8 @@ class _ActivityTile extends StatelessWidget {
           ),
         ActivityType.pickupConfirmed => (
             icon: Icons.inventory_2_rounded,
-            color: AppColors.warning,
-            bg: AppColors.warningSoft
+            color: AppColors.primaryDark,
+            bg: AppColors.primarySoft
           ),
         ActivityType.arrived => (
             icon: Icons.navigation_rounded,
@@ -66,8 +66,8 @@ class _ActivityTile extends StatelessWidget {
           ),
         ActivityType.failed => (
             icon: Icons.close_rounded,
-            color: AppColors.primaryDark,
-            bg: AppColors.primarySoft
+            color: AppColors.errorStrong,
+            bg: AppColors.errorSoft
           ),
       };
 

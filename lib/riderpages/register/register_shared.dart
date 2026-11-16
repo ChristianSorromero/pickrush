@@ -321,10 +321,10 @@ InputDecoration registerInputDecoration(String hint, {Widget? suffixIcon}) {
     enabledBorder: registerBorder(),
     disabledBorder: registerBorder(),
     focusedBorder: registerBorder(AppColors.primary),
-    errorBorder: registerBorder(AppColors.primaryDark),
-    focusedErrorBorder: registerBorder(AppColors.primaryDark),
+    errorBorder: registerBorder(AppColors.errorStrong),
+    focusedErrorBorder: registerBorder(AppColors.errorStrong),
     errorStyle:
-        AppTextStyles.caption.copyWith(color: AppColors.primaryDark),
+        AppTextStyles.caption.copyWith(color: AppColors.errorStrong),
   );
 }
 

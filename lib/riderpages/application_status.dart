@@ -150,7 +150,7 @@ class _StatusCard extends StatelessWidget {
     final (icon, color, title, body) = switch (account.status) {
       RiderStatus.rejected => (
           Icons.error_rounded,
-          AppColors.primaryDark,
+          AppColors.errorStrong,
           'Application not approved',
           'Your station could not approve your application. Fix what '
               'they asked for below and resubmit.',

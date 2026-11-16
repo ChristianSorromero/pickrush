@@ -11,6 +11,8 @@ import 'package:rider_app/services/scan_feedback.dart';
 import 'package:rider_app/widgets/scan_camera.dart';
 import 'package:rider_app/widgets/slide_to_accept.dart';
 import 'package:rider_app/widgets/surface_card.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
+import 'package:rider_app/widgets/motion.dart';
 
 /// At the seller: scan the waybill (barcode or QR) on every parcel, then
 /// confirm. Parcels the seller cannot hand over get a reason and go back to
@@ -66,9 +68,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (_lastRejected != no) {
       _lastRejected = no;
       ScanFeedback.error();
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.primaryDark));
+      AppToast.error(context, message);
     }
     return message;
   }
@@ -92,11 +92,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
       );
       assignmentWatcher.poll();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_scans.isEmpty
+      AppToast.success(context, _scans.isEmpty
             ? 'Stop closed. The station will follow up with ${_stop.sellerName}.'
-            : 'Pickup at ${_stop.sellerName} confirmed (${_scans.length}).'),
-      ));
+            : 'Pickup at ${_stop.sellerName} confirmed (${_scans.length}).');
       if (batch.allPickedUp) {
         Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => TripScreen(batch: batch)));
@@ -105,7 +103,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       }
     } on TaskException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        AppToast.error(context, e.message);
       }
       rethrow;
     }
@@ -159,7 +157,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 foregroundColor: AppColors.textPrimary,
                 side: const BorderSide(color: AppColors.textPrimary, width: 1.5),
                 minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+                shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                 textStyle: AppTextStyles.button,
               ),
             ),
@@ -172,8 +170,27 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     children: [
                       Text('SCANNED PARCELS', style: AppTextStyles.overline),
                       const Spacer(),
-                      Text('${_scans.length}/$total', style: AppTextStyles.h2),
+                      ValueSwap(
+                        value: _scans.length,
+                        alignment: Alignment.centerRight,
+                        child: Text('${_scans.length}/$total', style: AppTextStyles.numeric.copyWith(fontSize: 18)),
+                      ),
                     ],
+                  ),
+                  AppSpacing.gapSm,
+                  ClipRRect(
+                    borderRadius: AppRadius.pillAll,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: total == 0 ? 0 : _scans.length / total),
+                      duration: AppMotion.duration(context, AppMotion.small),
+                      curve: AppMotion.enter,
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 6,
+                        color: _scans.length == total ? AppColors.success : AppColors.primary,
+                        backgroundColor: AppColors.surfaceMuted,
+                      ),
+                    ),
                   ),
                   AppSpacing.gapMd,
                   if (_scans.isEmpty)
@@ -188,7 +205,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                           textAlign: TextAlign.center, style: AppTextStyles.caption),
                     )
                   else
-                    for (final s in _scans) _ScannedRow(scan: s),
+                    for (final s in _scans) FadeIn(key: ValueKey(s.trackingNo), child: _ScannedRow(scan: s)),
                 ],
               ),
             ),
@@ -237,7 +254,7 @@ class _ScannedRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('#${scan.trackingNo}', style: AppTextStyles.bodyStrong),
+              Text('#${scan.trackingNo}', style: AppTextStyles.numeric.copyWith(fontSize: 14)),
               Text('Scanned at $t', style: AppTextStyles.caption),
             ],
           ),
@@ -310,7 +327,7 @@ class _MissingSheetState extends State<_MissingSheet> {
                   hintText: _reason == 'other' ? 'What happened? (required)' : 'Note (optional)',
                   filled: true,
                   fillColor: AppColors.surface,
-                  border: OutlineInputBorder(borderRadius: AppRadius.mdAll),
+                  border: OutlineInputBorder(borderRadius: AppRadius.button),
                 ),
               ),
               Row(
@@ -328,9 +345,9 @@ class _MissingSheetState extends State<_MissingSheet> {
                           : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppColors.onPrimary,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+                        shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                       ),
                       child: const Text('Confirm'),
                     ),

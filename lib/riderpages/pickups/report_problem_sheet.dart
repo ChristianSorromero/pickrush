@@ -7,6 +7,7 @@ import 'package:rider_app/models/batch_models.dart';
 import 'package:rider_app/services/location_service.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// "Report a problem": the station sees it on its dashboard with where the
 /// rider is, and calls them back.
@@ -20,8 +21,7 @@ Future<void> showReportProblem(BuildContext context, int batchId) async {
     builder: (_) => _ReportSheet(batchId: batchId),
   );
   if (sent == true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Sent to your station. They will contact you.')));
+    AppToast.success(context, 'Sent to your station. They will contact you.');
   }
 }
 
@@ -127,7 +127,7 @@ class _ReportSheetState extends State<_ReportSheet> {
               ),
               if (_error != null)
                 Text(_error!,
-                    style: AppTextStyles.caption.copyWith(color: AppColors.primaryDark)),
+                    style: AppTextStyles.caption.copyWith(color: AppColors.errorStrong)),
               AppSpacing.gapSm,
               AppButton(
                 label: 'Send to station',

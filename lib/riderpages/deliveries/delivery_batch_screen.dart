@@ -15,6 +15,7 @@ import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// An accepted delivery batch. Before the route: scan every parcel onto the
 /// vehicle at the station, then Start Route. On the route: stop by stop
@@ -62,12 +63,12 @@ class _DeliveryBatchScreenState extends State<DeliveryBatchScreen> {
       final batch = await riderTasks.batch(_batch.id);
       if (mounted) setState(() => _batch = batch);
     } on TaskException catch (e) {
-      _toast(e.message);
+      _toast(e.message, type: ToastType.error);
     }
   }
 
-  void _toast(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message, {ToastType type = ToastType.success}) {
+    if (mounted) AppToast.show(context, message, type: type);
   }
 
   Future<void> _scan() async {
@@ -90,7 +91,7 @@ class _DeliveryBatchScreenState extends State<DeliveryBatchScreen> {
       setState(() => _batch = batch);
       _toast('Route started. Your parcels are out for delivery.');
     } on TaskException catch (e) {
-      _toast(e.message);
+      _toast(e.message, type: ToastType.error);
     } finally {
       if (mounted) setState(() => _starting = false);
     }
@@ -205,7 +206,7 @@ class _DeliveryBatchScreenState extends State<DeliveryBatchScreen> {
       return ElevatedButton.icon(
         onPressed: _starting ? null : _startRoute,
         icon: _starting
-            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
             : const Icon(Icons.play_arrow_rounded),
         label: const Text('Start Route'),
         style: _primary.copyWith(
@@ -323,19 +324,19 @@ class _DeliveryBatchScreenState extends State<DeliveryBatchScreen> {
 
   static final _primary = ElevatedButton.styleFrom(
     backgroundColor: AppColors.primary,
-    foregroundColor: Colors.white,
+    foregroundColor: AppColors.onPrimary,
     disabledBackgroundColor: AppColors.border,
     disabledForegroundColor: AppColors.textMuted,
     elevation: 0,
     minimumSize: const Size.fromHeight(52),
-    shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
   );
 
   static final _outlined = OutlinedButton.styleFrom(
     foregroundColor: AppColors.textPrimary,
     side: const BorderSide(color: AppColors.border),
     minimumSize: const Size.fromHeight(48),
-    shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
   );
 }
 
@@ -457,7 +458,7 @@ class _ParcelTile extends StatelessWidget {
           Container(
             height: 36,
             width: 36,
-            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: AppRadius.mdAll),
+            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: AppRadius.button),
             child: Icon(item.isReturn ? Icons.keyboard_return_rounded : Icons.inventory_2_rounded,
                 size: 18, color: AppColors.primaryDark),
           ),
@@ -550,8 +551,8 @@ class _StopTile extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textPrimary,
                       side: const BorderSide(color: AppColors.border),
-                      minimumSize: const Size.fromHeight(42),
-                      shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                     ),
                     child: const Text('View items'),
                   ),
@@ -563,10 +564,10 @@ class _StopTile extends StatelessWidget {
                       onPressed: onGo,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isNext || stop.hasArrived ? AppColors.primary : AppColors.primarySoft,
-                        foregroundColor: isNext || stop.hasArrived ? Colors.white : AppColors.primaryDark,
+                        foregroundColor: isNext || stop.hasArrived ? AppColors.onPrimary : AppColors.primaryDark,
                         elevation: 0,
-                        minimumSize: const Size.fromHeight(42),
-                        shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                       ),
                       child: Text(stop.hasArrived ? 'Scan & deliver' : 'Navigate'),
                     ),

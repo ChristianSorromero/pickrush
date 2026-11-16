@@ -7,10 +7,10 @@ import 'package:rider_app/format_utils.dart';
 import 'package:rider_app/models/wallet_models.dart';
 import 'package:rider_app/riderpages/wallet_parts.dart';
 import 'package:rider_app/services/rider_task_service.dart';
-import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/section_card.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// The rider's weekly payslips, newest first. Each week (Monday to Sunday)
 /// closes on Sunday night; the station releases it by Tuesday.
@@ -157,7 +157,7 @@ class _PayslipScreenState extends State<PayslipScreen> {
                     Text(signedPeso(p.net), style: AppTextStyles.display),
                     AppSpacing.gapMd,
                     InfoRow(
-                      icon: Icons.inventory_2_outlined,
+                      icon: Icons.task_alt_rounded,
                       label: '${p.pickups} pickups · ${p.deliveries} deliveries · ${p.returns} returns',
                       value: FormatUtils.peso(p.earned),
                     ),
@@ -212,19 +212,8 @@ class _Loading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 80),
-      child: Center(
-        child: error == null
-            ? const CircularProgressIndicator(color: AppColors.primary)
-            : Column(
-                children: [
-                  Text(error!, textAlign: TextAlign.center, style: AppTextStyles.body),
-                  AppSpacing.gapLg,
-                  AppButton(label: 'Try again', onPressed: onRetry, expand: false),
-                ],
-              ),
-      ),
-    );
+    return error == null
+        ? const StateView.loading(skeleton: CardListSkeleton(count: 2))
+        : StateView.error(message: error!, onRetry: onRetry);
   }
 }

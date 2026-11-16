@@ -11,6 +11,7 @@ import 'package:rider_app/riderpages/handover_parts.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/cash_count_confirm.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// At the station after a delivery route: hand in the COD cash (the station
 /// records it on its Cash page) and each parcel not delivered (they scan it in
@@ -27,6 +28,8 @@ class ReturnHandoverScreen extends StatefulWidget {
 class _ReturnHandoverScreenState extends State<ReturnHandoverScreen> {
   late RiderBatch _batch = widget.batch;
   Timer? _timer;
+  DateTime? _syncedAt;
+  bool _syncFailing = false;
 
   @override
   void initState() {
@@ -45,13 +48,18 @@ class _ReturnHandoverScreenState extends State<ReturnHandoverScreen> {
     try {
       final batch = await riderTasks.batch(_batch.id);
       if (!mounted) return;
-      setState(() => _batch = batch);
+      setState(() {
+        _batch = batch;
+        _syncedAt = DateTime.now();
+        _syncFailing = false;
+      });
       if (batch.status == BatchStatus.completed) {
         _timer?.cancel();
         assignmentWatcher.poll();
       }
     } on TaskException {
-      // Try again on the next tick.
+      // Try again on the next tick; the sync line says so.
+      if (mounted && !_syncFailing) setState(() => _syncFailing = true);
     }
   }
 
@@ -87,6 +95,10 @@ class _ReturnHandoverScreenState extends State<ReturnHandoverScreen> {
                 ),
               ),
               HandoverHeader(batch: b, done: done, total: total, complete: complete),
+              if (!complete) ...[
+                AppSpacing.gapSm,
+                SyncStatus(lastSyncAt: _syncedAt, failing: _syncFailing),
+              ],
               AppSpacing.gapSm,
               Text('${b.deliveredCount} delivered · ${b.failedCount} not delivered', style: AppTextStyles.caption),
               AppSpacing.gapLg,

@@ -10,6 +10,7 @@ import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/riderpages/register/register_shared.dart';
 import 'package:rider_app/services/auth_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// Sending a renewed driver's license or OR/CR from Account, any time. The
 /// station hub manager approves it; until then the one on file stays valid.
@@ -131,7 +132,7 @@ class _DocumentUpdateScreenState extends State<DocumentUpdateScreen> {
         },
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      AppToast.success(context, message);
       Navigator.of(context).pop(account);
     } on AuthException catch (e) {
       if (mounted) setState(() => _error = e.message);

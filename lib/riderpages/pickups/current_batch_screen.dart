@@ -14,6 +14,7 @@ import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/icon_tile.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// An accepted batch: go stop by stop (navigate, arrive, scan each waybill),
 /// then bring everything to the station.
@@ -57,8 +58,7 @@ class _CurrentBatchScreenState extends State<CurrentBatchScreen> {
       if (mounted) setState(() => _batch = batch);
     } on TaskException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        AppToast.error(context, e.message);
       }
     }
   }
@@ -216,7 +216,7 @@ class _CurrentBatchScreenState extends State<CurrentBatchScreen> {
         BatchStatus.cancelled => const TagChip.muted(label: 'Taken back'),
         _ when b.allPickedUp => const TagChip(
             label: 'Bring to station',
-            color: Colors.white,
+            color: AppColors.onPrimary,
             background: AppColors.primary),
         _ when b.pickedCount > 0 => const TagChip(
             label: 'Picking up', color: Colors.white, background: AppColors.warning),
@@ -226,23 +226,23 @@ class _CurrentBatchScreenState extends State<CurrentBatchScreen> {
             background: AppColors.warning),
       };
 
-  static final _shape = RoundedRectangleBorder(borderRadius: AppRadius.mdAll);
+  static final _shape = RoundedRectangleBorder(borderRadius: AppRadius.button);
 
   static final _outlined = OutlinedButton.styleFrom(
     foregroundColor: AppColors.textPrimary,
     side: const BorderSide(color: AppColors.border),
     shape: _shape,
-    minimumSize: const Size.fromHeight(42),
+    minimumSize: const Size.fromHeight(48),
   );
 
   static final _primary = ElevatedButton.styleFrom(
     backgroundColor: AppColors.primary,
-    foregroundColor: Colors.white,
+    foregroundColor: AppColors.onPrimary,
     disabledBackgroundColor: AppColors.primarySoft,
     disabledForegroundColor: AppColors.textMuted,
     elevation: 0,
     shape: _shape,
-    minimumSize: const Size.fromHeight(42),
+    minimumSize: const Size.fromHeight(48),
   );
 
   static final _soft = ElevatedButton.styleFrom(
@@ -250,7 +250,7 @@ class _CurrentBatchScreenState extends State<CurrentBatchScreen> {
     foregroundColor: AppColors.primaryDark,
     elevation: 0,
     shape: _shape,
-    minimumSize: const Size.fromHeight(42),
+    minimumSize: const Size.fromHeight(48),
   );
 }
 

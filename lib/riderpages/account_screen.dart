@@ -11,11 +11,13 @@ import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/auth_service.dart';
 import 'package:rider_app/services/launcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
+import 'package:rider_app/widgets/tab_header.dart';
 import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/app_text_field.dart';
 import 'package:rider_app/widgets/section_card.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// Account tab: who the rider is to their station, their vehicle, documents
 /// and payout details (read-only: the station keeps these), going online,
@@ -66,8 +68,8 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  void _toast(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message, {ToastType type = ToastType.success}) {
+    if (mounted) AppToast.show(context, message, type: type);
   }
 
   Future<void> _setOnline(bool online) async {
@@ -77,29 +79,21 @@ class _AccountScreenState extends State<AccountScreen> {
       assignmentWatcher.touch(); // Home reloads too
       _toast(online ? 'You are online. New tasks can be assigned to you.' : 'You are offline. No new tasks will be assigned.');
     } on TaskException catch (e) {
-      _toast(e.message);
+      _toast(e.message, type: ToastType.error);
     } finally {
       if (mounted) setState(() => _switching = false);
     }
   }
 
   Future<void> _logout() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text('You will stop getting new assignments on this phone until you log in again.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Log out?',
+      message: 'You will stop getting new assignments on this phone until you log in again.',
+      confirmLabel: 'Log out',
+      destructive: true,
     );
-    if (ok != true) return;
+    if (!ok) return;
     assignmentWatcher.reset();
     await authService.logout();
     _toLogin();
@@ -123,50 +117,33 @@ class _AccountScreenState extends State<AccountScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH, vertical: AppSpacing.lg),
           children: [
-            Text('Account', style: AppTextStyles.h1),
+            TabHeader(title: 'Account', onNotificationsClosed: _load),
             AppSpacing.gapXl,
             if (a == null)
-              Padding(
-                padding: const EdgeInsets.only(top: 60),
-                child: Center(
-                  child: _error == null
-                      ? const CircularProgressIndicator(color: AppColors.primary)
-                      : Column(
-                          children: [
-                            Text(_error!, textAlign: TextAlign.center, style: AppTextStyles.body),
-                            AppSpacing.gapLg,
-                            AppButton(label: 'Try again', onPressed: _load, expand: false),
-                          ],
-                        ),
-                ),
-              )
+              _error == null
+                  ? const StateView.loading(skeleton: CardListSkeleton(count: 4))
+                  : StateView.error(message: _error!, onRetry: _load)
             else ...[
               _ProfileHeader(account: a),
               AppSpacing.gapLg,
               _OnlineCard(online: a.isOnline, busy: _switching, onChanged: _setOnline),
               ..._expiryBanner(a),
               AppSpacing.gapXl,
-              _work(a),
-              AppSpacing.gapXl,
-              _vehicle(a),
-              AppSpacing.gapXl,
-              _documents(a),
-              AppSpacing.gapXl,
-              _payout(a),
-              AppSpacing.gapXl,
-              _contact(a),
-              AppSpacing.gapXl,
-              SectionCard(
-                title: 'Security',
-                children: [
-                  InfoRow(
-                    icon: Icons.lock_outline_rounded,
-                    label: 'Password',
-                    value: 'Change password',
-                    onTap: () => showChangePassword(context),
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: AppSpacing.sm),
+                child: Text('YOUR DETAILS', style: AppTextStyles.overline),
               ),
+              _documents(a),
+              AppSpacing.gapMd,
+              _work(a),
+              AppSpacing.gapMd,
+              _vehicle(a),
+              AppSpacing.gapMd,
+              _payout(a),
+              AppSpacing.gapMd,
+              _contact(a),
+              AppSpacing.gapMd,
+              _security(),
               AppSpacing.gapXxl,
               AppButton(label: 'Log Out', variant: AppButtonVariant.outline, onPressed: _logout),
               AppSpacing.gapMd,
@@ -202,7 +179,7 @@ class _AccountScreenState extends State<AccountScreen> {
         Container(
           padding: const EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
-            color: expired ? AppColors.primarySoft : AppColors.warningSoft,
+            color: expired ? AppColors.errorSoft : AppColors.warningSoft,
             borderRadius: AppRadius.lgAll,
           ),
           child: Column(
@@ -211,11 +188,12 @@ class _AccountScreenState extends State<AccountScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: expired ? AppColors.primaryDark : AppColors.warning),
+                  Icon(expired ? Icons.gpp_bad_outlined : Icons.event_busy_outlined,
+                      color: expired ? AppColors.errorStrong : AppColors.warning),
                   AppSpacing.gapMd,
                   Expanded(
                     child: Text(text,
-                        style: AppTextStyles.bodyStrong.copyWith(color: expired ? AppColors.primaryDark : AppColors.warning)),
+                        style: AppTextStyles.bodyStrong.copyWith(color: expired ? AppColors.errorStrong : AppColors.warning)),
                   ),
                 ],
               ),
@@ -224,7 +202,6 @@ class _AccountScreenState extends State<AccountScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () => _renew(a, type),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
                     child: Text(type == 'or_cr' ? 'Renew OR/CR' : 'Renew license'),
                   ),
                 ),
@@ -245,96 +222,110 @@ class _AccountScreenState extends State<AccountScreen> {
     if (updated != null && mounted) setState(() => _account = updated);
   }
 
-  Widget _work(RiderAccount a) => SectionCard(
-        title: 'Work',
+  Widget _work(RiderAccount a) => CollapsibleSection(
+        icon: Icons.work_outline_rounded,
+        title: 'Work assignment',
+        summary: [a.company?.name, a.station?.name].whereType<String>().join(' · '),
         children: [
+          if (a.company != null)
+            InfoRow(icon: Icons.business_rounded, label: 'Logistics company (hired by)', value: a.company!.name),
           InfoRow(
-            icon: Icons.apartment_rounded,
+            icon: Icons.warehouse_outlined,
             label: 'Station',
             value: [a.station?.name, a.station?.city].whereType<String>().join(' · '),
           ),
-          InfoRow(icon: Icons.map_outlined, label: 'Delivery zone', value: a.zone ?? 'Not assigned yet'),
+          InfoRow(icon: Icons.share_location_rounded, label: 'Delivery zone', value: a.zone ?? 'Not assigned yet'),
           if (a.codLimit != null)
-            InfoRow(icon: Icons.payments_outlined, label: 'COD limit', value: FormatUtils.peso(a.codLimit!)),
+            InfoRow(icon: Icons.price_check_rounded, label: 'COD limit (cash you can carry)', value: FormatUtils.peso(a.codLimit!)),
           if (a.maxParcels != null)
-            InfoRow(icon: Icons.inventory_2_outlined, label: 'Parcels per day', value: 'Up to ${a.maxParcels}'),
+            InfoRow(icon: Icons.all_inbox_outlined, label: 'Parcels per day', value: 'Up to ${a.maxParcels}'),
           if (a.approvedAt != null)
-            InfoRow(icon: Icons.verified_outlined, label: 'Rider since', value: _longDate(a.approvedAt!)),
+            InfoRow(icon: Icons.workspace_premium_outlined, label: 'Rider since', value: _longDate(a.approvedAt!)),
         ],
       );
 
+  static IconData _vehicleIcon(String? type) => switch (type) {
+        'tricycle' => Icons.electric_rickshaw_outlined,
+        'four_wheel' => Icons.airport_shuttle_outlined,
+        _ => Icons.two_wheeler_rounded,
+      };
+
   Widget _vehicle(RiderAccount a) {
-    final days = _daysLeft(a.licenseExpiry);
-    return SectionCard(
-      title: 'Vehicle & license',
+    final type = VehicleType.fromApi(a.vehicleType)?.label ?? _title(a.vehicleType ?? '—');
+    return CollapsibleSection(
+      icon: _vehicleIcon(a.vehicleType),
+      title: 'Vehicle',
+      summary: [type, a.plateNumber].whereType<String>().join(' · '),
       children: [
-        InfoRow(
-          icon: switch (a.vehicleType) {
-            'tricycle' => Icons.electric_rickshaw_outlined,
-            'four_wheel' => Icons.directions_car_outlined,
-            _ => Icons.two_wheeler_rounded,
-          },
-          label: 'Vehicle',
-          value: VehicleType.fromApi(a.vehicleType)?.label ?? _title(a.vehicleType ?? '—'),
-        ),
+        InfoRow(icon: _vehicleIcon(a.vehicleType), label: 'Type', value: type),
         InfoRow(icon: Icons.pin_outlined, label: 'Plate number', value: a.plateNumber ?? '—'),
-        InfoRow(icon: Icons.badge_outlined, label: 'License number', value: a.licenseNo ?? '—'),
-        if (a.licenseExpiry != null)
-          InfoRow(
-            icon: Icons.event_outlined,
-            label: 'License expiry',
-            value: _longDate(a.licenseExpiry!),
-            trailing: _expiryChip(days),
-          ),
-        if (a.orcrExpiry != null)
-          InfoRow(
-            icon: Icons.event_outlined,
-            label: 'Registration (OR/CR) expiry',
-            value: _longDate(a.orcrExpiry!),
-            trailing: _expiryChip(_daysLeft(a.orcrExpiry)),
-          ),
       ],
     );
   }
 
-  /// One row per document (the license's two sides together), with a Renew
-  /// button and where a renewal the rider sent stands.
+  /// The license and the OR/CR in one place: number, expiry, renewal status
+  /// and a Renew button each. Opens by itself when one needs the rider.
   Widget _documents(RiderAccount a) {
     final docs = a.documents;
-    if (docs.isEmpty) {
-      return const SectionCard(
-        title: 'Documents',
-        children: [
-          InfoRow(icon: Icons.description_outlined, label: 'No documents on file', value: 'Your station keeps your documents'),
-        ],
-      );
-    }
-    final types = {for (final d in docs) d.type};
-    return SectionCard(
-      title: 'Documents',
-      children: [
-        for (final type in types) ...[
-          () {
-            final d = docs.firstWhere((d) => d.type == type);
-            return InfoRow(
-              icon: type == 'or_cr' ? Icons.description_outlined : Icons.badge_outlined,
-              label: d.label,
-              value: d.expiry == null ? 'On file' : 'Valid until ${_longDate(d.expiry!)}',
-              trailing: d.expiry == null ? const TagChip.success(label: 'On file') : _expiryChip(d.daysLeft()),
-            );
-          }(),
-          ..._updateStatus(a.updateFor(type)),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => _renew(a, type),
-              icon: const Icon(Icons.upload_file_rounded, size: 18),
-              label: Text(a.updateFor(type)?.isPending ?? false ? 'Send again' : 'Renew'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
-            ),
-          ),
-        ],
-      ],
+    final types = {for (final d in docs) d.type}.toList();
+    final soonest = docs.map((d) => d.daysLeft()).whereType<int>().fold<int?>(null, (m, v) => m == null || v < m ? v : m);
+    final pending = types.any((t) => a.updateFor(t)?.isPending ?? false);
+    final rejected = types.any((t) => a.updateFor(t)?.isRejected ?? false);
+    final tone = soonest != null && soonest < 0
+        ? TaskTone.failed
+        : (soonest != null && soonest <= 30) || rejected
+            ? TaskTone.attention
+            : null;
+    final summary = docs.isEmpty
+        ? 'Your station keeps your documents'
+        : soonest != null && soonest < 0
+            ? 'A document has expired — renew it'
+            : soonest != null && soonest <= 30
+                ? 'A document expires ${_inDays(soonest)}'
+                : rejected
+                    ? 'A renewal was not accepted'
+                    : pending
+                        ? 'Renewal waiting for your station'
+                        : 'All valid';
+
+    return CollapsibleSection(
+      icon: Icons.folder_shared_outlined,
+      title: 'License & documents',
+      summary: summary,
+      attention: tone,
+      initiallyExpanded: tone != null,
+      children: docs.isEmpty
+          ? const [InfoRow(icon: Icons.description_outlined, label: 'No documents on file', value: 'Your station keeps your documents')]
+          : [
+              for (final type in types)
+                Builder(builder: (context) {
+                  final d = docs.firstWhere((d) => d.type == type);
+                  final license = type == 'drivers_license';
+                  final days = d.daysLeft();
+                  final expired = days != null && days < 0;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      InfoRow(
+                        icon: license ? Icons.badge_outlined : Icons.receipt_long_outlined,
+                        iconColor: expired ? AppColors.errorStrong : null,
+                        label: license ? "Driver's license${a.licenseNo == null ? '' : ' · ${a.licenseNo}'}" : 'Registration (OR/CR)',
+                        value: d.expiry == null ? 'On file' : 'Valid until ${_longDate(d.expiry!)}',
+                        trailing: d.expiry == null ? const TagChip.success(label: 'On file') : _expiryChip(days),
+                      ),
+                      ..._updateStatus(a.updateFor(type)),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => _renew(a, type),
+                          icon: const Icon(Icons.upload_file_rounded, size: 18),
+                          label: Text(a.updateFor(type)?.isPending ?? false ? 'Send again' : 'Renew'),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+            ],
     );
   }
 
@@ -343,12 +334,12 @@ class _AccountScreenState extends State<AccountScreen> {
     if (u == null || !(u.isPending || u.isRejected)) return const [];
     return [
       Padding(
-        padding: const EdgeInsets.only(left: 36, bottom: AppSpacing.xs),
+        padding: const EdgeInsets.only(left: 40, bottom: AppSpacing.xs),
         child: Text(
           u.isPending
               ? 'New one sent${u.sentAt == null ? '' : ' ${_longDate(u.sentAt!)}'}: waiting for your station to approve it.'
               : 'Your new one was not accepted: ${u.reason ?? 'ask your station why'}',
-          style: AppTextStyles.caption.copyWith(color: u.isPending ? AppColors.warning : AppColors.primaryDark),
+          style: AppTextStyles.caption.copyWith(color: u.isPending ? AppColors.warning : AppColors.errorStrong),
         ),
       ),
     ];
@@ -356,18 +347,19 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _payout(RiderAccount a) {
     final p = a.payout;
-    return SectionCard(
+    final method = p == null ? null : switch (p.method) { 'gcash' => 'GCash', 'maya' => 'Maya', _ => 'Bank account' };
+    final masked = p?.account == null || p!.account!.length < 4 ? p?.account : '•••• ${p.account!.substring(p.account!.length - 4)}';
+    return CollapsibleSection(
+      icon: Icons.account_balance_wallet_outlined,
       title: 'Payout',
+      summary: p == null ? 'Not set — ask your station' : '$method · $masked',
+      attention: p == null ? TaskTone.attention : null,
       children: [
         p == null
-            ? const InfoRow(
-                icon: Icons.account_balance_wallet_outlined,
-                label: 'Payout method',
-                value: 'Not set — ask your station to add it',
-              )
+            ? const InfoRow(icon: Icons.help_outline_rounded, label: 'Payout method', value: 'Not set — ask your station to add it')
             : InfoRow(
-                icon: Icons.account_balance_wallet_outlined,
-                label: switch (p.method) { 'gcash' => 'GCash', 'maya' => 'Maya', _ => 'Bank account' },
+                icon: p.method == 'gcash' || p.method == 'maya' ? Icons.smartphone_rounded : Icons.account_balance_outlined,
+                label: method!,
                 value: p.account ?? '—',
               ),
       ],
@@ -377,12 +369,14 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget _contact(RiderAccount a) {
     final station = a.stationContact;
     final emergency = a.emergencyContact;
-    return SectionCard(
-      title: 'Contact details',
+    return CollapsibleSection(
+      icon: Icons.contact_phone_outlined,
+      title: 'Personal & contact',
+      summary: a.mobile == null ? a.email : '+63 ${a.mobile}',
       children: [
         InfoRow(icon: Icons.phone_iphone_rounded, label: 'Mobile', value: a.mobile == null ? '—' : '+63 ${a.mobile}'),
-        InfoRow(icon: Icons.alternate_email_rounded, label: 'Email', value: a.email),
-        if (a.fullAddress.isNotEmpty) InfoRow(icon: Icons.home_outlined, label: 'Address', value: a.fullAddress),
+        InfoRow(icon: Icons.mail_outline_rounded, label: 'Email', value: a.email),
+        if (a.fullAddress.isNotEmpty) InfoRow(icon: Icons.home_outlined, label: 'Home address', value: a.fullAddress),
         if (emergency != null)
           InfoRow(
             icon: Icons.contact_emergency_outlined,
@@ -402,9 +396,8 @@ class _AccountScreenState extends State<AccountScreen> {
               if (station?.mobile != null)
                 TextButton.icon(
                   onPressed: () => Launcher.call(station!.mobile!),
-                  icon: const Icon(Icons.call_outlined, size: 16),
-                  label: const Text('Call'),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
+                  icon: const Icon(Icons.support_agent_rounded, size: 18),
+                  label: const Text('Call station'),
                 ),
             ],
           ),
@@ -412,6 +405,20 @@ class _AccountScreenState extends State<AccountScreen> {
       ],
     );
   }
+
+  Widget _security() => CollapsibleSection(
+        icon: Icons.shield_outlined,
+        title: 'Security',
+        summary: 'Password and sign-in',
+        children: [
+          InfoRow(
+            icon: Icons.password_rounded,
+            label: 'Password',
+            value: 'Change password',
+            onTap: () => showChangePassword(context),
+          ),
+        ],
+      );
 }
 
 class _ProfileHeader extends StatelessWidget {
@@ -439,6 +446,23 @@ class _ProfileHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(a.fullName, style: AppTextStyles.h2.copyWith(fontSize: 18)),
+                if (a.company != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.business_rounded, size: 14, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text('${a.company!.name} rider',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.caption
+                                  .copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+                        ),
+                      ],
+                    ),
+                  ),
                 Text(a.email, style: AppTextStyles.caption),
                 AppSpacing.gapSm,
                 Wrap(
@@ -515,8 +539,7 @@ Future<void> showChangePassword(BuildContext context) async {
     builder: (_) => const _PasswordSheet(),
   );
   if (changed == true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password changed. Other phones were signed out.')));
+    AppToast.success(context, 'Password changed. Other phones were signed out.');
   }
 }
 
@@ -614,7 +637,7 @@ class _PasswordSheetState extends State<_PasswordSheet> {
                 ),
                 if (_error != null) ...[
                   AppSpacing.gapMd,
-                  Text(_error!, style: AppTextStyles.bodyStrong.copyWith(color: AppColors.primaryDark)),
+                  Text(_error!, style: AppTextStyles.bodyStrong.copyWith(color: AppColors.errorStrong)),
                 ],
                 AppSpacing.gapXl,
                 AppButton(label: 'Save new password', isLoading: _saving, onPressed: _save),
@@ -635,7 +658,7 @@ int? _daysLeft(DateTime? expiry) {
 
 Widget _expiryChip(int? days) {
   if (days == null) return const SizedBox.shrink();
-  if (days < 0) return const TagChip(label: 'Expired');
+  if (days < 0) return const TagChip.error(label: 'Expired');
   if (days <= 30) return TagChip.warning(label: days == 0 ? 'Expires today' : 'Expires in $days d');
   return const TagChip.success(label: 'Valid');
 }

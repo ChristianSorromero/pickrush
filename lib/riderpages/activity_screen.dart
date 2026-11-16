@@ -67,7 +67,10 @@ class ActivityDates {
 /// older lines loading as the rider scrolls down. A picker chooses all,
 /// deliveries or pickups; filters narrow it to a result and a date range.
 class ActivityScreen extends StatefulWidget {
-  const ActivityScreen({super.key});
+  const ActivityScreen({super.key, this.embedded = false});
+
+  /// Shown inside the Tasks tab (no app bar of its own).
+  final bool embedded;
 
   @override
   State<ActivityScreen> createState() => _ActivityScreenState();
@@ -226,12 +229,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
     final resultLabel = _kind.results.where((r) => r.$1 == _result).map((r) => r.$2).firstOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Activity', style: AppTextStyles.h2),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: Text('Activity', style: AppTextStyles.h2),
+              backgroundColor: AppColors.background,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+            ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

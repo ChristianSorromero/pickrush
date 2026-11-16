@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:rider_app/app_colors.dart';
 import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 import 'package:rider_app/widgets/icon_tile.dart';
@@ -54,8 +53,7 @@ class _StatCard extends StatelessWidget {
             TextSpan(children: [
               TextSpan(
                   text: '$value ',
-                  style: AppTextStyles.h2
-                      .copyWith(color: AppColors.textPrimary)),
+                  style: AppTextStyles.numeric.copyWith(fontSize: 18)),
               TextSpan(text: label, style: AppTextStyles.bodyStrong),
             ]),
           ),

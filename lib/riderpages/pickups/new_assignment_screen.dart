@@ -15,6 +15,7 @@ import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/slide_to_accept.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// A batch the station just offered: every stop (pickup sellers, or delivery
 /// recipients with what each pays the rider) and where the batch ends, then
@@ -67,16 +68,14 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
       final batch = await riderTasks.accept(widget.batchId);
       assignmentWatcher.poll();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(batch.isDelivery
+      AppToast.success(context, batch.isDelivery
               ? 'Batch accepted. Scan the parcels onto your vehicle at the station.'
-              : 'Batch accepted. Head to the first stop.')));
+              : 'Batch accepted. Head to the first stop.');
       Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => acceptedBatchScreen(batch)));
     } on TaskException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        AppToast.error(context, e.message);
         _load();
       }
       rethrow; // resets the slider
@@ -90,13 +89,11 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
       await riderTasks.decline(widget.batchId, reason: reason);
       assignmentWatcher.poll();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Batch declined. The station will reassign it.')));
+      AppToast.success(context, 'Batch declined. The station will reassign it.');
       Navigator.of(context).pop();
     } on TaskException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        AppToast.error(context, e.message);
       }
     }
   }
@@ -174,9 +171,8 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.textPrimary,
                         side: const BorderSide(color: AppColors.border),
-                        minimumSize: const Size.fromHeight(46),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: AppRadius.mdAll),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                       ),
                     ),
                     AppSpacing.gapXxl,
@@ -426,8 +422,10 @@ class _Loading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (error == null) {
-      return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
+      return const SingleChildScrollView(
+        padding: EdgeInsets.all(AppSpacing.screenH),
+        child: StateView.loading(skeleton: CardListSkeleton(count: 3)),
+      );
     }
     return Center(
       child: Padding(
@@ -435,9 +433,7 @@ class _Loading extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(error!, textAlign: TextAlign.center, style: AppTextStyles.body),
-            AppSpacing.gapLg,
-            AppButton(label: 'Try again', onPressed: onRetry, expand: false),
+            StateView.error(message: error!, onRetry: onRetry),
             TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Back')),
@@ -514,7 +510,6 @@ void openBatchRoute(BuildContext context, RiderBatch b) async {
       ? (stops.isNotEmpty && await Launcher.navigateTo(stops.first))
       : await Launcher.route(stops, destination);
   if (!ok && context.mounted) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Could not open Maps.')));
+    AppToast.error(context, 'Could not open Maps.');
   }
 }

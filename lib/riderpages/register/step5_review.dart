@@ -714,7 +714,7 @@ class _SuccessDialog extends StatelessWidget {
                 onPressed: onDone,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.onPrimary,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(

@@ -18,6 +18,7 @@ import 'package:rider_app/services/location_service.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/slide_to_accept.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// Every stop is done: the trip to the station, or its handover checklist
 /// when the rider already slid "Arrived at Hub".
@@ -116,7 +117,7 @@ class _TripScreenState extends State<TripScreen> {
     // makes Google Maps look for a place by that name and find nothing.
     final address = _address?.trim() ?? '';
     final ok = await Launcher.navigate(pin: _pin, fallback: address.isNotEmpty ? address : _name);
-    if (!ok && mounted) _toast('Could not open Google Maps.');
+    if (!ok && mounted) _toast('Could not open Google Maps.', type: ToastType.error);
   }
 
   Future<void> _fixGps() async {
@@ -133,10 +134,10 @@ class _TripScreenState extends State<TripScreen> {
       if (!mounted) return;
       _next(batch);
     } on TaskException catch (e) {
-      _toast(e.message);
+      _toast(e.message, type: ToastType.error);
       rethrow;
     } on LocationProblem catch (e) {
-      _toast(e.message);
+      _toast(e.message, type: ToastType.error);
       rethrow;
     }
   }
@@ -161,8 +162,8 @@ class _TripScreenState extends State<TripScreen> {
                 : 'Hi! This is your PickSell rider for batch #${b.batchNo}. I am on my way to collect your parcels.');
   }
 
-  void _toast(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message, {ToastType type = ToastType.success}) {
+    if (mounted) AppToast.show(context, message, type: type);
   }
 
   /// "STOP 2 OF 3 · PICKUP", or the station.
@@ -371,7 +372,7 @@ class _DirectionsCard extends StatelessWidget {
                       side: const BorderSide(color: AppColors.border),
                       backgroundColor: AppColors.surface,
                       minimumSize: const Size.fromHeight(52),
-                      shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+                      shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                     ),
                   )
                 : ElevatedButton.icon(
@@ -380,11 +381,11 @@ class _DirectionsCard extends StatelessWidget {
                     label: const Text('Open Google Maps'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.onPrimary,
                       elevation: 0,
                       minimumSize: const Size.fromHeight(52),
                       textStyle: AppTextStyles.button,
-                      shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+                      shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                     ),
                   ),
           ),
@@ -415,7 +416,7 @@ class _ContactButton extends StatelessWidget {
         side: const BorderSide(color: AppColors.primary),
         backgroundColor: AppColors.surface,
         minimumSize: const Size.fromHeight(48),
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.pillAll),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
       ),
     );
   }

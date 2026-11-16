@@ -40,15 +40,22 @@ class BatchProgress extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (var i = 0; i < labels.length; i++)
-              Text(
+              Expanded(
+                child: Text(
                 labels[i],
+                textAlign: i == 0
+                    ? TextAlign.left
+                    : i == labels.length - 1
+                        ? TextAlign.right
+                        : TextAlign.center,
                 style: AppTextStyles.caption.copyWith(
-                  fontSize: 9,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w700,
                   color: i <= reached ? AppColors.primaryDark : AppColors.textMuted,
+                ),
                 ),
               ),
           ],

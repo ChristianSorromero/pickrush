@@ -8,6 +8,7 @@ import 'package:rider_app/riderpages/pickups/batch_routes.dart';
 import 'package:rider_app/services/assignment_watcher.dart';
 import 'package:rider_app/services/rider_task_service.dart';
 import 'package:rider_app/widgets/icon_tile.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// What the station sent: new pickup batches, pickups taken back...
 /// Opening the list marks everything read.
@@ -58,23 +59,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         color: AppColors.primary,
         onRefresh: _load,
         child: items == null
-            ? ListView(children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 120),
-                  child: Center(
-                    child: _error == null
-                        ? const CircularProgressIndicator(color: AppColors.primary)
-                        : Text(_error!, style: AppTextStyles.body),
-                  ),
-                ),
+            ? ListView(padding: const EdgeInsets.all(AppSpacing.screenH), children: [
+                _error == null
+                    ? const StateView.loading(skeleton: CardListSkeleton(count: 4))
+                    : StateView.error(message: _error!, onRetry: _load),
               ])
             : items.isEmpty
-                ? ListView(children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 120),
-                      child: Center(
-                          child: Text('No notifications yet.',
-                              style: AppTextStyles.body)),
+                ? ListView(children: const [
+                    StateView.empty(
+                      icon: Icons.notifications_none_rounded,
+                      title: 'No notifications yet',
+                      message: 'New batches and updates from your station show up here.',
                     ),
                   ])
                 : ListView.separated(

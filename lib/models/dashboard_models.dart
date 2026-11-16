@@ -93,10 +93,15 @@ class DashboardData {
     required this.unreadNotifications,
     required this.activity,
     this.hub,
+    this.companyName,
   });
 
   final bool isOnline;
   final RiderHub? hub;
+
+  /// The logistics company the rider works for (Pickrush, Mobloop...);
+  /// null from older servers.
+  final String? companyName;
   final double todayEarnings;
   final int pickups;
   final int delivered;
@@ -113,6 +118,7 @@ class DashboardData {
     final hub = j['hub'] is Map ? Map<String, dynamic>.from(j['hub'] as Map) : null;
     return DashboardData(
       isOnline: j['shift_status'] == 'on_shift',
+      companyName: j['company'] is Map ? (j['company'] as Map)['name'] as String? : null,
       hub: hub == null
           ? null
           : RiderHub(name: hub['name'] as String, city: hub['city'] as String?),

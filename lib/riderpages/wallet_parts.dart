@@ -13,6 +13,7 @@ import 'package:rider_app/widgets/icon_tile.dart';
 import 'package:rider_app/widgets/section_card.dart';
 import 'package:rider_app/widgets/surface_card.dart';
 import 'package:rider_app/widgets/tag_chip.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 /// ₱240.00, or −₱85.00 for a negative balance.
 String signedPeso(double v) => v < 0 ? '−${FormatUtils.peso(-v)}' : FormatUtils.peso(v);
@@ -45,10 +46,10 @@ class _WalletCardState extends State<WalletCard> {
     try {
       final (message, _) = await riderTasks.withdraw(amount);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      AppToast.success(context, message);
       await widget.onChanged();
     } on TaskException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) AppToast.error(context, e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -217,10 +218,10 @@ class _DeductionRowState extends State<DeductionRow> {
     try {
       final (message, _) = await riderTasks.disputeDeduction(widget.deduction.id, reason);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      AppToast.success(context, message);
       await widget.onChanged?.call();
     } on TaskException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) AppToast.error(context, e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

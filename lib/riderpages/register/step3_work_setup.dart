@@ -216,7 +216,7 @@ class _WorkSetupScreenState extends State<WorkSetupScreen> {
                     Text(
                       state.errorText!,
                       style: AppTextStyles.caption
-                          .copyWith(color: AppColors.primaryDark),
+                          .copyWith(color: AppColors.errorStrong),
                     ),
                   ],
                 ],

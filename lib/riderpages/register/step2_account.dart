@@ -10,6 +10,7 @@ import 'package:rider_app/widgets/code_input.dart';
 import 'package:rider_app/widgets/password_rules.dart';
 import 'register_shared.dart';
 import 'step3_work_setup.dart';
+import 'package:rider_app/widgets/app_feedback.dart';
 
 // ── Step 2 — Account Security ─────────────────────────────────────────────────
 
@@ -55,13 +56,10 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
       );
     } on OtpException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      AppToast.error(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not send the code. Try again.')),
-      );
+      AppToast.error(context, 'Could not send the code. Try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -231,18 +229,13 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
       _code.clear();
       setState(() => _error = false);
       _startCooldown();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A new code has been sent.')),
-      );
+      AppToast.success(context, 'A new code has been sent.');
     } on OtpException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      AppToast.error(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not resend the code.')),
-      );
+      AppToast.error(context, 'Could not resend the code.');
     }
   }
 
@@ -288,7 +281,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
                 _errorMessage,
                 textAlign: TextAlign.center,
                 style: AppTextStyles.caption.copyWith(
-                  color: AppColors.primaryDark,
+                  color: AppColors.errorStrong,
                   fontWeight: FontWeight.w600,
                 ),
               ),

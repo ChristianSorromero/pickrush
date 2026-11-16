@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:rider_app/app_colors.dart';
+import 'package:rider_app/app_spacing.dart';
 import 'package:rider_app/app_text_styles.dart';
 
 class AppNavItem {
@@ -17,6 +18,8 @@ class AppNavItem {
   final bool showBadge;
 }
 
+/// Bottom tabs. The active tab sits in a soft coral pill (the Rider take on
+/// the Buyer's coral tick): easy to see in sunlight, one glance.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
     super.key,
@@ -39,7 +42,7 @@ class AppBottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 64,
+          height: 68,
           child: Row(
             children: [
               for (var i = 0; i < items.length; i++)
@@ -59,8 +62,7 @@ class AppBottomNav extends StatelessWidget {
 }
 
 class _NavButton extends StatelessWidget {
-  const _NavButton(
-      {required this.item, required this.selected, required this.onTap});
+  const _NavButton({required this.item, required this.selected, required this.onTap});
 
   final AppNavItem item;
   final bool selected;
@@ -69,33 +71,61 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? AppColors.primaryDark : AppColors.textMuted;
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(selected ? item.activeIcon : item.icon,
-                  size: 24, color: color),
-              if (item.showBadge)
-                Positioned(
-                  top: -1,
-                  right: -2,
-                  child: Container(
-                    height: 7,
-                    width: 7,
-                    decoration: const BoxDecoration(
-                        color: AppColors.primaryDark, shape: BoxShape.circle),
+    final d = AppMotion.duration(context, AppMotion.small);
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: item.showBadge ? '${item.label}, new' : item.label,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: d,
+              curve: AppMotion.change,
+              height: 32,
+              width: 60,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primarySoft : Colors.transparent,
+                borderRadius: AppRadius.pillAll,
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedSwitcher(
+                    duration: AppMotion.duration(context, AppMotion.icon),
+                    child:
+                        Icon(selected ? item.activeIcon : item.icon, key: ValueKey(selected), size: 24, color: color),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(item.label,
-              style: AppTextStyles.navLabel.copyWith(color: color)),
-        ],
+                  if (item.showBadge)
+                    Positioned(
+                      top: 3,
+                      right: 16,
+                      child: Container(
+                        height: 9,
+                        width: 9,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryDark,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.surface, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            AnimatedDefaultTextStyle(
+              duration: d,
+              style: AppTextStyles.navLabel
+                  .copyWith(color: color, fontWeight: selected ? FontWeight.w800 : FontWeight.w600),
+              child: Text(item.label),
+            ),
+          ],
+        ),
       ),
     );
   }
