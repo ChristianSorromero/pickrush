@@ -11,7 +11,7 @@ import 'package:rider_app/services/auth_service.dart';
 import 'package:rider_app/widgets/app_button.dart';
 import 'package:rider_app/widgets/app_checkbox_tile.dart';
 import 'package:rider_app/widgets/app_text_field.dart';
-import 'package:rider_app/widgets/brand_logo.dart';
+import 'package:rider_app/app_assets.dart';
 import 'package:rider_app/widgets/app_feedback.dart';
 
 /// Sign in with email and password. Also the way into "Forgot password?"
@@ -52,7 +52,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      final account = await authService.login(email, _password.text, remember: _rememberMe);
+      final account =
+          await authService.login(email, _password.text, remember: _rememberMe);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (_) => account.status == RiderStatus.active
@@ -70,7 +71,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onForgotPassword() async {
     final email = _email.text.trim();
     if (!_emailPattern.hasMatch(email)) {
-      setState(() => _error = 'Type your registered email above, then tap "Forgot password?".');
+      setState(() => _error =
+          'Type your registered email above, then tap "Forgot password?".');
       return;
     }
     setState(() => _error = null);
@@ -79,37 +81,48 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (reset == true && mounted) {
       _password.clear();
-      AppToast.success(context, 'Password reset. Log in with your new password.');
+      AppToast.success(
+          context, 'Password reset. Log in with your new password.');
     }
   }
 
   void _onRegister() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen()));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const RegisterScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, viewport) => SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
-            child: ConstrainedBox(
-              // Fill the screen so the footer sits at the bottom; scroll when the keyboard is up.
-              constraints: BoxConstraints(minHeight: viewport.maxHeight),
-              child: IntrinsicHeight(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Spacer(flex: 2),
-                    const _Hero(),
-                    const SizedBox(height: 36),
-                    _form(),
-                    const Spacer(flex: 3),
-                    _Footer(onRegister: _onRegister),
-                    AppSpacing.gapLg,
-                  ],
-                ),
+      backgroundColor: AppColors.background,
+      body: LayoutBuilder(
+        builder: (context, viewport) => SingleChildScrollView(
+          child: ConstrainedBox(
+            // Fill the screen so the footer sits at the bottom; scroll when the keyboard is up.
+            constraints: BoxConstraints(minHeight: viewport.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Hero(topInset: MediaQuery.paddingOf(context).top),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenH),
+                    child: Transform.translate(
+                      offset: const Offset(0, -36),
+                      child: _FormCard(child: _form()),
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenH),
+                    child: _Footer(onRegister: _onRegister),
+                  ),
+                  SizedBox(
+                      height:
+                          AppSpacing.lg + MediaQuery.paddingOf(context).bottom),
+                ],
               ),
             ),
           ),
@@ -123,6 +136,11 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text('Welcome back, Rider', style: AppTextStyles.h1),
+          AppSpacing.gapXs,
+          Text('Sign in to manage your pickups and deliveries.',
+              style: AppTextStyles.body),
+          AppSpacing.gapXxl,
           AppTextField(
             label: 'Email Address',
             hint: 'you@example.com',
@@ -188,37 +206,130 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// Logo, greeting and what the app is for.
+/// Warm branded band: logo badge, app name and the "Rider app" tag.
+/// The form card overlaps its rounded bottom edge.
 class _Hero extends StatelessWidget {
-  const _Hero();
+  const _Hero({required this.topInset});
+  final double topInset;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const BrandLogo(height: 60),
-        AppSpacing.gapMd,
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: AppRadius.pillAll),
-          child: Text(
-            'RIDER APP',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.primaryDark,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, topInset + 40, 24, 72),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFE3D6), AppColors.primarySoft, Color(0xFFFFF6F1)],
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          // Soft decorative rings, echoing the logo's speed lines.
+          const Positioned(right: -60, top: -50, child: _Ring(size: 170)),
+          const Positioned(left: -70, bottom: -40, child: _Ring(size: 130)),
+          SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 92,
+                  height: 92,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                          color:
+                              const Color(0xFFE96C36).withValues(alpha: 0.22),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10)),
+                    ],
+                  ),
+                  child: Image.asset(AppAssets.logoMark),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'PSL Logistics',
+                  style: AppTextStyles.h1
+                      .copyWith(fontSize: 28, letterSpacing: -0.3),
+                ),
+                AppSpacing.gapSm,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.75),
+                    borderRadius: AppRadius.pillAll,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.two_wheeler_rounded,
+                          size: 15, color: AppColors.primaryDark),
+                      const SizedBox(width: 6),
+                      Text(
+                        'RIDER APP',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 28),
-        Text('Welcome back, Rider', textAlign: TextAlign.center, style: AppTextStyles.h1.copyWith(fontSize: 26)),
-        AppSpacing.gapSm,
-        Text(
-          'Sign in to manage your pickups and deliveries.',
-          textAlign: TextAlign.center,
-          style: AppTextStyles.body,
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Ring extends StatelessWidget {
+  const _Ring({required this.size});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+            color: const Color(0xFFE96C36).withValues(alpha: 0.12), width: 18),
+      ),
+    );
+  }
+}
+
+/// White card that holds the sign-in form.
+class _FormCard extends StatelessWidget {
+  const _FormCard({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x14000000), blurRadius: 30, offset: Offset(0, 12)),
+        ],
+      ),
+      child: child,
     );
   }
 }
@@ -251,7 +362,7 @@ class _Footer extends StatelessWidget {
         ),
         AppSpacing.gapMd,
         Text(
-          'PickSell Logistics · ride for a PickSell logistics partner',
+          'PSL Logistics · Delivery partner of PickSell',
           textAlign: TextAlign.center,
           style: AppTextStyles.caption,
         ),
@@ -267,14 +378,19 @@ class _ErrorBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
-      decoration: BoxDecoration(color: AppColors.errorSoft, borderRadius: AppRadius.mdAll),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+      decoration: BoxDecoration(
+          color: AppColors.errorSoft, borderRadius: AppRadius.mdAll),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, size: 18, color: AppColors.errorStrong),
+          const Icon(Icons.error_outline_rounded,
+              size: 18, color: AppColors.errorStrong),
           AppSpacing.gapSm,
           Expanded(
-            child: Text(message, style: AppTextStyles.bodyStrong.copyWith(color: AppColors.errorStrong)),
+            child: Text(message,
+                style: AppTextStyles.bodyStrong
+                    .copyWith(color: AppColors.errorStrong)),
           ),
         ],
       ),

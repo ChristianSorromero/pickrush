@@ -147,7 +147,7 @@ class _AccountScreenState extends State<AccountScreen> {
               AppSpacing.gapXxl,
               AppButton(label: 'Log Out', variant: AppButtonVariant.outline, onPressed: _logout),
               AppSpacing.gapMd,
-              Center(child: Text('Pickrush Rider · v0.1.0', style: AppTextStyles.caption)),
+              Center(child: Text('PSL Logistics · v0.1.0', style: AppTextStyles.caption)),
               AppSpacing.gapLg,
             ],
           ],

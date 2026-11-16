@@ -7,7 +7,7 @@
     <!-- Buzz when a scan is refused. -->
     <uses-permission android:name="android.permission.VIBRATE"/>
     <application
-        android:label="pickrush"
+        android:label="PSL Logistics"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
